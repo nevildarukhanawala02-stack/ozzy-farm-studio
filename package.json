@@ -1,0 +1,12 @@
+{
+  "name": "ozzy-farm-studio",
+  "version": "1.0.0",
+  "description": "A calm, painting-themed 15-minute daily play session for Ozzy: colours, sounds, counting and first phrases.",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/smoke.js"
+  },
+  "engines": { "node": ">=18" },
+  "devDependencies": { "jsdom": "^24.1.0" }
+}
