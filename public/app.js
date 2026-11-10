@@ -211,8 +211,15 @@
   const stage = $("#stage"), thumb = $("#thumb"), homeBtn = $("#homeBtn");
   homeBtn.innerHTML = ICON.home;
   let fills = Array(REGIONS.length).fill(null);
+  const zoom = () => {
+    if ($("#app > .overlay")) return;
+    const o = h("div", "overlay", '<div class="bigart">' + paintingSVG(fills) + "</div>");
+    o.onclick = () => o.remove(); $("#app").append(o);
+  };
+  thumb.setAttribute("role", "button"); thumb.tabIndex = 0; thumb.setAttribute("aria-label", "Zoom in on the painting");
+  thumb.onclick = zoom; thumb.onkeydown = (e) => { if (e.key === "Enter") zoom(); };
 
-  function show(node) { clearTimers(); stopSpeech(); stage.replaceChildren(node); node.classList.add("enter"); }
+  function show(node) { document.querySelectorAll("#app > .overlay").forEach((o) => o.remove()); clearTimers(); stopSpeech(); stage.replaceChildren(node); node.classList.add("enter"); }
   function paintNext(color) {
     const i = fills.findIndex((f) => !f); if (i < 0) return;
     fills[i] = color || REGIONS[i].c;

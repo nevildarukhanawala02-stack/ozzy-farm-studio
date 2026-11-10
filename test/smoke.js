@@ -10,9 +10,16 @@ async function playSession(dom, label) {
   const { window } = dom, d = window.document;
   const start = Date.now();
   d.querySelector(".play").click();
+  let zoomed = false;
   while (Date.now() - start < 45000) {
     await wait(25);
     if (d.querySelector(".finale.done")) return;
+    if (!zoomed && d.querySelector("#thumb svg")) {
+      zoomed = true; d.querySelector("#thumb").click();
+      if (!d.querySelector("#app > .overlay svg")) throw new Error("zoom overlay did not open");
+      d.querySelector("#app > .overlay").click();
+      if (d.querySelector("#app > .overlay")) throw new Error("zoom overlay did not close");
+    }
     const el = d.querySelector(".card[data-correct]") || d.querySelector(".respond .next") || d.querySelector(".item:not([data-got])") || d.querySelector(".round.up");
     if (el) el.click();
   }
