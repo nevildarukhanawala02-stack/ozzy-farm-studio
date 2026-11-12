@@ -139,7 +139,7 @@
         ls.forEach((l) => {
           const dn = doneMap[l.n], isNext = !st.complete && l.n === st.done + 1;
           const e = h("details", "ls " + (dn ? "done" : isNext ? "upnext" : ""));
-          e.innerHTML = "<summary>" + (dn ? "✓" : isNext ? "●" : "○") + " Day " + l.day + " · " + l.icon + " " + esc(l.title) + (dn ? " <small>" + fmtDay(dn.day) + "</small>" : isNext ? " <small>up next</small>" : "") + "</summary>" +
+          e.innerHTML = "<summary>" + (dn ? "✓" : isNext ? "●" : "○") + " Day " + l.day + " · " + l.icon + " " + esc(l.title) + (dn ? " <small>" + (dn.pre ? "done earlier" : fmtDay(dn.day)) + "</small>" : isNext ? " <small>up next</small>" : "") + "</summary>" +
             "<p><b>What it contains:</b> " + esc(l.contains) + "</p><p><b>Why:</b> " + esc(l.why) + "</p><p><b>Together moment:</b> " + esc(l.together) + "</p>";
           d.append(e);
         });

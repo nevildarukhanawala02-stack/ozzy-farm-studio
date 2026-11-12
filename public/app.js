@@ -35,6 +35,13 @@
   const prog = Object.assign({ sessions: 0, days: [], attempts: 0, gallery: [], lessons: [], together: [], stats: {}, adapt: {}, adaptLog: [] }, store.get("prog", {}));
   const saveSettings = () => store.set("settings", settings);
   const saveProg = () => store.set("prog", prog);
+  /* Ozzy has already done lesson 1, so it counts as finished and the plan starts from lesson 2.
+     This runs once per device and never repeats, so "Restart the plan" still gives a real fresh start. */
+  if (!prog.skipFirst) {
+    prog.skipFirst = true;
+    if (!prog.lessons.length) prog.lessons.push({ n: 1, day: "2000-01-01", ts: 0, pre: true });
+    saveProg();
+  }
 
   const idb = {
     db: null,

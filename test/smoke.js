@@ -46,12 +46,14 @@ async function playSession(dom, label) {
   if (!d.querySelector(".play")) fail("home screen missing");
   if (!d.querySelector(".tbadge").textContent) fail("today's badge missing");
 
+  // lesson 1 was already done by Ozzy, so the plan starts at lesson 2
+  if (prog.lessons.length !== 1 || prog.lessons[0].n !== 1 || !prog.lessons[0].pre) fail("lesson 1 should be pre-completed");
   // one real lesson, then bonus play the same day must not advance the plan
-  await playSession(dom, "lesson 1");
-  if (prog.lessons.length !== 1) fail("first session should finish lesson 1");
+  await playSession(dom, "lesson 2");
+  if (prog.lessons.length !== 2) fail("first session should finish lesson 2");
   d.querySelector(".finale .round.next").click(); await wait(30);
   await playSession(dom, "bonus");
-  if (prog.lessons.length !== 1) fail("bonus play advanced the plan");
+  if (prog.lessons.length !== 2) fail("bonus play advanced the plan");
   if (prog.sessions !== 2) fail("sessions should be 2");
   // together moment: shows the lesson's text and saves on press-and-hold
   d.querySelector(".finale .round.together").click(); await wait(30);
@@ -61,7 +63,7 @@ async function playSession(dom, label) {
   d.querySelector("#tgHome").click(); await wait(30);
 
   // the rest of the plan: one simulated day per lesson
-  for (let i = 2; i <= TOTAL; i++) {
+  for (let i = 3; i <= TOTAL; i++) {
     prog.lessons.forEach((l) => { l.day = "2000-01-01"; });
     await playSession(dom, "lesson " + i);
     if (prog.lessons.length !== i) fail("lesson " + i + " did not complete (" + prog.lessons.length + ")");
