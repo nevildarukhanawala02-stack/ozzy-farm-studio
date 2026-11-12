@@ -317,3 +317,5 @@ button:focus-visible { outline: .8vmin solid var(--lake); outline-offset: .6vmin
 .gbtn2 { background: #6b6f8a; color: #fff; border-radius: 10px; padding: 7px 12px; font: inherit; }
 @media (orientation: landscape) { .pbox { flex-direction: row; align-items: center; justify-content: center; } .pside { max-width: 34vw; } .pbox .bigart { width: min(54vw, 74vh * 1.33); } }
 .overlay.pnt { background: rgba(42, 45, 74, .9); }
+.parent { padding-top: 0; }
+.phead { padding-top: 16px; background: var(--sky); }

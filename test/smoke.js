@@ -48,6 +48,12 @@ async function playSession(dom, label) {
 
   // lesson 1 was already done by Ozzy, so the plan starts at lesson 2
   if (prog.lessons.length !== 1 || prog.lessons[0].n !== 1 || !prog.lessons[0].pre) fail("lesson 1 should be pre-completed");
+  // lesson 1's practice is credited in the report card as "earlier", without invented accuracy
+  if (!prog.stats.colour || prog.stats.colour.pre !== 3 || prog.stats.colour.r !== 0) fail("lesson 1 practice not credited");
+  d.querySelector(".dot").dispatchEvent(new w.Event("pointerdown")); await wait(80);
+  const early = [...d.querySelectorAll(".skill")].map((x) => x.textContent);
+  if (early.length !== 3 || !early.every((t) => /earlier/.test(t)) || early.some((t) => /straight away/.test(t))) fail("report card should list 3 earlier skills: " + early.join(" | "));
+  d.querySelector("#pBack").click(); await wait(30);
   // one real lesson, then bonus play the same day must not advance the plan
   await playSession(dom, "lesson 2");
   if (prog.lessons.length !== 2) fail("first session should finish lesson 2");
