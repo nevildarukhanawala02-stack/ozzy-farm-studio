@@ -21,7 +21,9 @@ Rules: tapping only, 2–3 big pictures per screen, wrong taps just wobble, the 
 | 3 | Number Stories | counting objects, counting rope |
 | 4 | Feelings and Friends | feelings faces, taking turns with Pip |
 | 5 | Adventure Day | story with Pip, word pictures |
-| 6 | Free Painting | asking for “more” and “help”, splashing, a favourite |
+| 6 | Free Painting | asking for “more” and “help” (two-word requests from week 6), splashing, a favourite |
+
+From week 5 the mix grows: crow number stories (3 crows sit, 1 flies away, how many are left?), yes/no, “first, then” picture routines, greetings (hi, thank you, bye bye) and “how does Pip feel?” stories.
 
 One new lesson unlocks per day played, in order, so a missed day never skips anything. A second session on the same day is bonus play and does not advance the plan. The picture on the play button shows today’s theme.
 
@@ -35,8 +37,8 @@ On the home screen, press and hold the small faint circle (bottom right) for 1.5
 Everything is stored on the device only. Use *Download backup* now and then.
 
 ## Roadmap
-- **Phase 1 (this)**: plan engine, Month 1 activities, spoken questions, grown-ups dashboard, notes and check-ins
-- **Phase 2**: Month 2 content (number stories such as 3 crows, yes/no, “first, then”, greetings)
+- **Phase 1 (done)**: plan engine, Month 1 activities, spoken questions, grown-ups dashboard, notes and check-ins
+- **Phase 2 (done)**: Month 2 content: crow number stories, yes/no, “first, then”, greetings, two-word requests, feelings in stories, two more adventure stories
 - **Phase 3**: Month 3 content (waiting, sharing, everyday-place stories) and the self-learning loop that turns three months of progress, notes and check-ins into the next plan
 - **Later**: logins for other families, shared notes and attachments
 

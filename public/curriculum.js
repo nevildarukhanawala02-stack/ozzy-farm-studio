@@ -28,40 +28,40 @@
   const WEEKS = [
     { n: 1, month: 1, title: "Settling in", focus: "Getting comfortable with the routine and with Pip.",
       together: "Sit side by side and look at the painting together.",
-      cfg: { colours: 3, animals: 3, count: 3, faces: 2, phraseLen: 2, questions: false } },
+      cfg: { crows: 0, colours: 3, animals: 3, count: 3, faces: 2, phraseLen: 2, questions: false } },
     { n: 2, month: 1, title: "Finding and pointing", focus: "Tapping the picture that is named, and pointing.",
       together: "Take turns pointing at pictures while a grown-up names them.",
-      cfg: { colours: 5, animals: 4, count: 5, faces: 2, phraseLen: 2, questions: false } },
+      cfg: { crows: 0, colours: 5, animals: 4, count: 5, faces: 2, phraseLen: 2, questions: false } },
     { n: 3, month: 1, title: "Requesting", focus: "Asking for “more” and “help” by tapping a picture.",
       together: "Pass the brush back and forth: your turn, my turn.",
-      cfg: { colours: 5, animals: 4, count: 5, faces: 2, phraseLen: 2, questions: false } },
+      cfg: { crows: 0, colours: 5, animals: 4, count: 5, faces: 2, phraseLen: 2, questions: false } },
     { n: 4, month: 1, title: "Show-off week", focus: "Replaying favourites and enjoying the gallery.",
       together: "Show a finished painting to a family member.",
-      cfg: { colours: 5, animals: 4, count: 5, faces: 2, phraseLen: 2, questions: false }, showoff: true },
+      cfg: { crows: 0, colours: 5, animals: 4, count: 5, faces: 2, phraseLen: 2, questions: false }, showoff: true },
     { n: 5, month: 2, title: "Answering questions", focus: "Real questions such as “Where is the cow?”, answered by tapping.",
       together: "Ask one simple question at mealtime and wait for any answer.",
-      cfg: { colours: 7, animals: 6, count: 5, faces: 3, phraseLen: 2, questions: true } },
+      cfg: { crows: 3, colours: 7, animals: 6, count: 5, faces: 3, phraseLen: 2, questions: true } },
     { n: 6, month: 2, title: "Two-word requests", focus: "Asking with two words (or two taps), with optional voice.",
       together: "Offer a choice of two snacks and wait for a point or a sound.",
-      cfg: { colours: 7, animals: 6, count: 5, faces: 3, phraseLen: 2, questions: true } },
+      cfg: { crows: 4, colours: 7, animals: 6, count: 5, faces: 3, phraseLen: 2, questions: true } },
     { n: 7, month: 2, title: "Feelings and story maths", focus: "Happy, sad and cross faces, and counting in picture stories.",
       together: "Name feelings during a favourite video or a walk on the farm.",
-      cfg: { colours: 7, animals: 6, count: 5, faces: 3, phraseLen: 2, questions: true } },
+      cfg: { crows: 5, colours: 7, animals: 6, count: 5, faces: 3, phraseLen: 2, questions: true } },
     { n: 8, month: 2, title: "Show-off week", focus: "Replaying favourites and a “first, then” picture routine.",
       together: "Wave and say “hi” to a visitor or on a video call.",
-      cfg: { colours: 7, animals: 6, count: 5, faces: 3, phraseLen: 2, questions: true }, showoff: true },
+      cfg: { crows: 5, colours: 7, animals: 6, count: 5, faces: 3, phraseLen: 2, questions: true }, showoff: true },
     { n: 9, month: 3, title: "Turns and sharing", focus: "“My turn, your turn” and sharing paint with Pip.",
       together: "Play a short game with Ariana or a cousin, taking turns.",
-      cfg: { colours: 7, animals: 6, count: 10, faces: 4, phraseLen: 2, questions: true } },
+      cfg: { crows: 5, colours: 7, animals: 6, count: 10, faces: 4, phraseLen: 2, questions: true } },
     { n: 10, month: 3, title: "Waiting and asking for help", focus: "Waiting a little, and asking for help.",
       together: "Practise a short wait, then reward with a favourite activity.",
-      cfg: { colours: 7, animals: 6, count: 10, faces: 4, phraseLen: 2, questions: true } },
+      cfg: { crows: 5, colours: 7, animals: 6, count: 10, faces: 4, phraseLen: 2, questions: true } },
     { n: 11, month: 3, title: "Everyday places", focus: "Picture stories about everyday places, with three-word phrases.",
       together: "Visit a real shop or a neighbour and say or signal “hello”.",
-      cfg: { colours: 7, animals: 6, count: 10, faces: 4, phraseLen: 3, questions: true } },
+      cfg: { crows: 5, colours: 7, animals: 6, count: 10, faces: 4, phraseLen: 3, questions: true } },
     { n: 12, month: 3, title: "Show-off week", focus: "Choosing favourites and sharing his gallery.",
       together: "He shows his gallery to family or friends and says “look!”.",
-      cfg: { colours: 7, animals: 6, count: 10, faces: 4, phraseLen: 3, questions: true }, showoff: true },
+      cfg: { crows: 5, colours: 7, animals: 6, count: 10, faces: 4, phraseLen: 3, questions: true }, showoff: true },
   ];
 
   const MONTHS = [
@@ -77,28 +77,41 @@
   ];
 
   const PER_WEEK = THEMES.length;
-  const LESSONS = [];
-  WEEKS.forEach((w) => THEMES.forEach((t, i) => {
-    LESSONS.push({ n: LESSONS.length + 1, week: w.n, month: w.month, day: i + 1, theme: t.id, title: t.name,
-      icon: t.icon, contains: t.contains, why: t.why, focus: w.focus, together: w.together, cfg: w.cfg, showoff: !!w.showoff });
-  }));
-
+  const ACT_DESC = {
+    colour: "finds and names colours", splash: "splashes paint across a big canvas", sound: "matches farm animals to their sounds",
+    words: "finds named pictures", count: "counts pebbles, eggs and shells one by one", climb: "climbs a counting rope",
+    feelings: "matches faces to feelings", turns: "takes turns painting with Pip", story: "follows a short story with Pip and finds pictures in it",
+    request: "asks for more paint or help by tapping a picture", request2: "asks with two words by tapping two pictures",
+    yesno: "answers yes or no questions about pictures", crows: "solves picture story-maths, like 3 crows sit and 1 flies away",
+    firstthen: "follows a “first, then” picture routine", greet: "practises hi, thank you and bye bye", feelstory: "works out how Pip feels in little stories",
+    fav: "replays a favourite",
+  };
   function actsFor(lesson) {
+    const w = lesson.week, m2 = w >= 5, odd = w % 2 === 1;
     switch (lesson.theme) {
       case "colour": return ["colour", "splash"];
-      case "sounds": return ["sound", "words"];
-      case "numbers": return ["count", "climb"];
-      case "feelings": return ["feelings", "turns"];
-      case "adventure": return ["story", "words"];
-      default: return lesson.week >= 3 ? ["request", "splash"] : ["splash", "fav"];
+      case "sounds": return m2 ? ["sound", odd ? "yesno" : "words"] : ["sound", "words"];
+      case "numbers": return m2 ? ["crows", odd ? "count" : "climb"] : ["count", "climb"];
+      case "feelings": return m2 ? (odd ? ["feelings", "greet"] : ["feelstory", "turns"]) : ["feelings", "turns"];
+      case "adventure": return m2 ? ["story", "firstthen"] : ["story", "words"];
+      default: return w >= 6 ? ["request2", "splash"] : w >= 3 ? ["request", "splash"] : ["splash", "fav"];
     }
   }
+  const describe = (acts) => "He " + acts.map((a) => ACT_DESC[a]).join(", then ") + ".";
+
+  const LESSONS = [];
+  WEEKS.forEach((w) => THEMES.forEach((t, i) => {
+    const lesson = { n: LESSONS.length + 1, week: w.n, month: w.month, day: i + 1, theme: t.id, title: t.name,
+      icon: t.icon, why: t.why, focus: w.focus, together: w.together, cfg: w.cfg, showoff: !!w.showoff };
+    lesson.acts = actsFor(lesson); lesson.contains = describe(lesson.acts);
+    LESSONS.push(lesson);
+  }));
 
   /* Extra play on a day when today's lesson is already done. It never advances the plan. */
   function freeLesson(week) {
     const w = WEEKS[Math.min(Math.max(week, 1), WEEKS.length) - 1], t = THEMES[5];
-    return { n: 0, week: w.n, month: w.month, day: 6, theme: "free", title: "Bonus play", icon: t.icon, contains: t.contains,
-      why: t.why, focus: w.focus, together: w.together, cfg: w.cfg, showoff: false };
+    return { n: 0, week: w.n, month: w.month, day: 6, theme: "free", title: "Bonus play", icon: t.icon, contains: describe(["splash", "fav"]),
+      why: t.why, focus: w.focus, together: w.together, cfg: w.cfg, showoff: false, acts: ["splash", "fav"] };
   }
 
   const API = { THEMES, WEEKS, MONTHS, LESSONS, PER_WEEK, actsFor, freeLesson,

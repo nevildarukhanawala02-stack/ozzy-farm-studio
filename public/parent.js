@@ -9,7 +9,8 @@
   const SKILLS = [
     ["colour", "Colours", true], ["sound", "Animal sounds", true], ["words", "Word pictures", true], ["feelings", "Feelings", true],
     ["count", "Counting objects", false], ["climb", "Counting rope", false], ["turns", "Taking turns", false],
-    ["request", "Asking for things", false], ["story", "Story time", false], ["phrases", "Short phrases", false], ["splash", "Free painting", false],
+    ["request", "Asking for things", false], ["ask2", "Two-word requests", false], ["story", "Story time", false], ["phrases", "Short phrases", false], ["splash", "Free painting", false],
+    ["yesno", "Yes and no", true], ["crows", "Number stories", true], ["feelstory", "Feelings in stories", true], ["firstthen", "First, then", false], ["greet", "Hi, thank you, bye bye", false],
   ];
   const TAGS = ["Looking and pointing", "Understanding", "Speaking and sounds", "Being with others", "Mood and behaviour", "Other"];
   const TYPES = [["good", "🌟 Good news"], ["watch", "👀 Worth watching"], ["note", "📝 Note"]];

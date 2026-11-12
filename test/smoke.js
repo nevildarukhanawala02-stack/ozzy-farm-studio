@@ -23,7 +23,7 @@ async function playSession(dom, label) {
       if (d.querySelector("#app > .overlay")) fail("zoom overlay did not close");
     }
     const el = d.querySelector(".card[data-correct]") || d.querySelector(".card[data-any]") || d.querySelector(".respond .next") ||
-      d.querySelector(".item:not([data-got])") || d.querySelector(".round.up") || d.querySelector(".splashpad") || d.querySelector(".turnpad.mine");
+      d.querySelector(".item:not([data-got])") || d.querySelector(".round.up") || d.querySelector(".splashpad") || d.querySelector(".turnpad.mine") || d.querySelector(".ftbox:not(.locked):not(.done)") || d.querySelector(".greetbtn");
     if (el) el.click();
   }
   fail(label + ": session did not finish. Stage: " + d.querySelector("#stage").innerHTML.slice(0, 300));
@@ -70,7 +70,7 @@ async function playSession(dom, label) {
   }
   if (prog.lessons.length !== 72) fail("plan should be complete");
   prog.lessons.forEach((l, i) => { if (l.n !== i + 1) fail("lessons out of order at " + i); });
-  ["colour", "sound", "words", "count", "climb", "feelings", "turns", "request", "story", "phrases", "splash"].forEach((k) => {
+  ["colour", "sound", "words", "count", "climb", "feelings", "turns", "request", "story", "phrases", "splash", "yesno", "crows", "firstthen", "greet", "ask2", "feelstory"].forEach((k) => {
     if (!prog.stats[k] || !prog.stats[k].r) fail("no progress tracked for " + k);
   });
   // after the plan: still playable as bonus

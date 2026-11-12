@@ -409,7 +409,7 @@
     }
   }
 
-  const WORDS = { dog: "🐕", cat: "🐈", hen: "🐔", egg: "🥚", milk: "🥛", apple: "🍎", ball: "⚽", shell: "🐚", wave: "🌊", crab: "🦀", fish: "🐟", boat: "⛵", sun: "☀️", banana: "🍌", bread: "🍞", water: "💧", cow: "🐄", tree: "🌳" };
+  const WORDS = { dog: "🐕", cat: "🐈", hen: "🐔", egg: "🥚", milk: "🥛", apple: "🍎", ball: "⚽", shell: "🐚", wave: "🌊", crab: "🦀", fish: "🐟", boat: "⛵", sun: "☀️", banana: "🍌", bread: "🍞", water: "💧", cow: "🐄", tree: "🌳", duck: "🦆", flower: "🌸" };
   const THEMES = [["dog", "cat", "hen", "egg", "cow", "tree"], ["shell", "wave", "crab", "fish", "boat", "sun"], ["apple", "banana", "milk", "bread", "egg", "water"]];
 
   async function actWords() {
@@ -566,6 +566,18 @@
       { e: "🐄", t: "The cow says moo." },
       { e: "🥛", t: "Pip is thirsty.", find: "milk", opts: ["milk", "water", "bread"], q: "Can you find the milk?" },
       { e: "🐶🌳", t: "Time to play. Bye bye farm!" } ] },
+    { id: "walk", scenes: [
+      { e: "🐶🌳", t: "Pip goes for a walk." },
+      { e: "🌳", t: "Pip sees something very tall.", find: "tree", opts: ["tree", "ball", "sun"], q: "Can you find the tree?" },
+      { e: "🌊", t: "Pip comes to the pond." },
+      { e: "🦆", t: "Pip hears quack, quack.", find: "duck", opts: ["duck", "fish", "cat"], q: "Can you find the duck?" },
+      { e: "🐶🏠", t: "Pip goes home. Bye bye pond!" } ] },
+    { id: "paint", scenes: [
+      { e: "🐶🎨", t: "Pip loves to paint." },
+      { e: "☀️", t: "Pip paints something bright and warm.", find: "sun", opts: ["sun", "apple", "ball"], q: "Can you find the sun?" },
+      { e: "🖌️", t: "Pip paints some more." },
+      { e: "🌸", t: "Pip paints something that smells nice.", find: "flower", opts: ["flower", "tree", "dog"], q: "Can you find the flower?" },
+      { e: "🐶😊", t: "What a lovely painting!" } ] },
   ];
   async function actStory() {
     const story = STORIES[session.lesson.week % STORIES.length];
@@ -622,7 +634,150 @@
     }
   }
 
-  const ACT = { colour: actColour, splash: actSplash, sound: actSound, words: actWords, count: actCount, climb: actClimb, feelings: actFeelings, turns: actTurns, request: actRequest, story: actStory };
+  /* ---------- Phase 2: Month 2 activities ---------- */
+  const CROW = '<svg viewBox="0 0 64 60"><ellipse cx="28" cy="34" rx="18" ry="13" fill="#2A2D4A"/><circle cx="44" cy="22" r="9" fill="#2A2D4A"/><path d="M52 21l10 3-10 4z" fill="#F6C445"/><path d="M12 36L1 46l14-4z" fill="#2A2D4A"/><circle cx="46.5" cy="20" r="2.2" fill="#fff"/><path d="M24 46v9M32 46v9" stroke="#8A5A44" stroke-width="3" stroke-linecap="round"/></svg>';
+  const numCard = (v) => '<div class="numcard"><b>' + v + "</b><i>" + "●".repeat(Math.min(v, 10)) + "</i></div>";
+  const crowWord = (n) => NUM[n] + (n === 1 ? " crow" : " crows");
+
+  /* Picture story-maths: N crows sit, some fly away, how many are left? The answer is chosen from number cards with dots. */
+  async function actCrows() {
+    const maxN = cfg().crows || 5;
+    for (let r = 0; r < 3; r++) {
+      const total = Math.max(2, maxN - (2 - r)), gone = total >= 4 && r === 2 ? 2 : 1, left = total - gone;
+      const n = h("div", "scene"), fence = h("div", "fence");
+      const crows = [...Array(total)].map(() => h("div", "crow", CROW)); fence.append(...crows); n.append(fence); show(n);
+      await say(crowWord(total) + " sit on the fence.", { rate: 0.75 });
+      for (let i = 0; i < total; i++) { crows[i].classList.add("hop"); await say(NUM[i + 1], { rate: 0.8 }); }
+      await say(gone === 1 ? "Oh! One crow flies away." : "Oh! Two crows fly away.", { rate: 0.75 });
+      crows.slice(left).forEach((c) => c.classList.add("gone")); sfx.tick(); await sleep(900);
+      const wrong = shuffle([...new Set([left + 1, left - 1, total].filter((x) => x >= 1 && x !== left))]).slice(0, 2);
+      const opts = shuffle([left, ...wrong]);
+      const prompt = () => say("How many crows are on the fence?", { rate: 0.75 });
+      prompt().catch(() => {});
+      await choiceRound(n, {
+        skill: "crows", cls: "nums", options: opts.map((v) => ({ node: numCard(v), say: () => say(NUM[v], { rate: 0.7 }) })),
+        target: opts.indexOf(left), prompt, hintFirst: firstTime("crows") && r === 0,
+      });
+      await say(crowWord(left) + "!", { rate: 0.75 });
+      await respond(n, { word: NUM[left] });
+      await rewardPaint();
+    }
+  }
+
+  const YN_POOL = ["dog", "cat", "hen", "cow", "fish", "egg", "apple", "ball", "boat", "crab"];
+  const an = (w) => (/^[aeiou]/.test(w) ? "an " : "a ") + w;
+  async function actYesNo() {
+    const answers = shuffle([true, false, Math.random() < 0.5]);
+    for (let r = 0; r < 3; r++) {
+      const yes = answers[r], thing = YN_POOL[rnd(YN_POOL.length)], label = yes ? thing : shuffle(YN_POOL.filter((k) => k !== thing))[0];
+      const n = h("div", "scene"); n.append(h("div", "ynpic", pic(thing, WORDS[thing]))); show(n);
+      const prompt = () => say("Is this " + an(label) + "?", { rate: 0.75 });
+      prompt().catch(() => {});
+      const opts = shuffle([{ k: "yes", e: "👍" }, { k: "no", e: "👎" }]);
+      await choiceRound(n, {
+        skill: "yesno", options: opts.map((o) => ({ node: '<span class="emo">' + o.e + "</span>", say: () => say(o.k, { rate: 0.7 }) })),
+        target: opts.findIndex((o) => o.k === (yes ? "yes" : "no")), prompt, hintFirst: firstTime("yesno") && r === 0,
+      });
+      await say((yes ? "Yes" : "No") + "! This is " + an(thing) + ".", { rate: 0.75 });
+      await respond(n, { word: yes ? "yes" : "no" });
+      await rewardPaint();
+    }
+  }
+
+  /* "First paint, then ball": tap the first picture, then the second unlocks. */
+  const FT = [["paint", "🎨", "ball", "⚽"], ["wash hands", "🧼", "eat", "🍽️"], ["shoes", "👟", "go out", "🚪"], ["climb", "🧗", "drink", "🥤"], ["tidy up", "🧹", "story", "📖"]];
+  async function actFirstThen() {
+    for (let r = 0; r < 3; r++) {
+      const [a, ae, b, be] = FT[(session.lesson.n + r) % FT.length];
+      const n = h("div", "scene"), row = h("div", "ftrow");
+      const f = h("button", "ftbox first hint", "<small>first</small><span>" + ae + "</span>"), t = h("button", "ftbox then locked", "<small>then</small><span>" + be + "</span>");
+      f.setAttribute("aria-label", "First " + a); t.setAttribute("aria-label", "Then " + b);
+      row.append(f, h("div", "ftarrow", "➜"), t); n.append(row); show(n);
+      await say("First " + a + ", then " + b + ".", { rate: 0.75 });
+      await new Promise((res) => {
+        f.onclick = () => { if (f.classList.contains("done")) return; f.classList.add("done"); f.classList.remove("hint"); t.classList.remove("locked"); t.classList.add("hint"); sfx.tick(); say("First " + a + "!", { rate: 0.75 }).catch(() => {}); };
+        t.onclick = () => { if (t.classList.contains("locked") || t.classList.contains("done")) return; t.classList.add("done"); t.classList.remove("hint"); sfx.tick(); res(); };
+      });
+      track("firstthen", true);
+      await say("Then " + b + "!", { rate: 0.75 });
+      await rewardPaint();
+    }
+  }
+
+  /* Social routines: hi, thank you, bye bye. Tapping is the wave; saying it back is optional. */
+  async function actGreet() {
+    const S = [
+      { pip: "🐶", big: "👋", line: "Pip says hi! Can you wave hi?", reply: "Hi!", word: "hi" },
+      { pip: "🐶🎁", big: "🙏", line: "Pip has a present for you. Can you say thank you?", reply: "Thank you!", word: "thank you" },
+      { pip: "🐶🌙", big: "👋", line: "Time to go. Can you wave bye bye?", reply: "Bye bye!", word: "bye bye" },
+    ];
+    for (const s of S) {
+      const n = h("div", "scene"), b = h("button", "greetbtn", s.big); b.setAttribute("aria-label", s.word);
+      n.append(h("div", "storypic small", s.pip), b); show(n);
+      say(s.line, { rate: 0.75 }).catch(() => {});
+      await new Promise((res) => {
+        b.onclick = () => { clearTimers(); b.classList.add("waving"); sfx.tick(); res(); };
+        const me = cur; every(() => { if (me === cur) say(s.line, { rate: 0.75 }).catch(() => {}); }, 12000);
+      });
+      track("greet", true);
+      await say(s.reply, { rate: 0.75 });
+      await respond(n, { word: s.word });
+      await rewardPaint();
+    }
+  }
+
+  /* Two-word requests built by tapping two pictures: "more" + "paint". Any choice is fine; the phrase is spoken back. */
+  const ASK_A = [{ k: "more", e: "➕" }, { k: "want", e: "🙋" }];
+  const ASK_B = [{ k: "paint", e: "🎨" }, { k: "ball", e: "⚽" }, { k: "water", e: "💧" }, { k: "food", e: "🍽️" }];
+  async function actAsk2() {
+    for (let r = 0; r < 3; r++) {
+      const n = h("div", "scene"), slots = h("div", "slots"), row = h("div", "choices");
+      const s1 = h("span", "slot", "?"), s2 = h("span", "slot", "?"); slots.append(s1, s2);
+      n.append(h("div", "guide wave small", "🐶"), slots, row); show(n);
+      const pick = (items, slot, line) => new Promise((res) => {
+        row.replaceChildren(); say(line, { rate: 0.75 }).catch(() => {});
+        const cards = items.map((it) => {
+          const b = h("button", "card pair", "<span>" + it.e + "</span>"); b.dataset.any = "1"; b.setAttribute("aria-label", it.k);
+          b.onclick = () => { clearTimers(); b.classList.add("win"); sfx.tick(); slot.textContent = it.k; slot.classList.add("on"); res(it); }; return b;
+        });
+        row.append(...cards); const me = cur; every(() => { if (me === cur) cards[0].classList.add("hint"); }, 9000);
+      });
+      const a = await pick(shuffle(ASK_A), s1, "Tell Pip with two words. Pick the first word.");
+      const b = await pick(pickN(ASK_B, 2), s2, a.k + "… what?");
+      row.remove(); slots.classList.add("all"); track("ask2", true);
+      await say(a.k + " " + b.k + "!", { rate: 0.7 });
+      await respond(n, { word: a.k + " " + b.k, idleMs: 16000 });
+      await rewardPaint();
+    }
+  }
+
+  /* How does Pip feel? A tiny story, then the matching face. */
+  const FEEL_SCENES = [
+    { e: "🎂", t: "It is Pip’s birthday!", face: "happy" }, { e: "🎁", t: "Pip got a present!", face: "happy" },
+    { e: "🍦", t: "Pip dropped his ice cream.", face: "sad" }, { e: "🌧️", t: "It is raining and Pip cannot go out.", face: "sad" },
+    { e: "⚽", t: "Someone took Pip’s ball.", face: "cross" }, { e: "🌙", t: "It is late and Pip is very tired.", face: "sleepy" },
+  ];
+  async function actFeelStory() {
+    const faces = FACES.slice(0, cfg().faces), ok = FEEL_SCENES.filter((s) => faces.some((f) => f.k === s.face)), used = [];
+    for (let r = 0; r < 3; r++) {
+      const sc = shuffle(ok.filter((s) => !used.includes(s)))[0] || shuffle(ok)[0]; used.push(sc);
+      const target = faces.find((f) => f.k === sc.face), opts = shuffle([target, ...pickN(faces.filter((f) => f !== target), 2)]);
+      const n = h("div", "scene"); n.append(h("div", "storypic small", sc.e)); show(n);
+      await say(sc.t, { rate: 0.75 });
+      const prompt = () => say("How does Pip feel?", { rate: 0.75 });
+      prompt().catch(() => {});
+      await choiceRound(n, {
+        skill: "feelstory", options: opts.map((f) => ({ node: '<span class="emo">' + f.e + "</span>", say: () => say(f.k, { rate: 0.7 }) })),
+        target: opts.indexOf(target), prompt, hintFirst: firstTime("feelstory") && r === 0,
+      });
+      await say(target.k + "!", { rate: 0.7 });
+      await respond(n, { word: target.k });
+      await rewardPaint();
+    }
+  }
+
+  const ACT = { colour: actColour, splash: actSplash, sound: actSound, words: actWords, count: actCount, climb: actClimb, feelings: actFeelings, turns: actTurns, request: actRequest, story: actStory,
+    yesno: actYesNo, crows: actCrows, firstthen: actFirstThen, greet: actGreet, request2: actAsk2, feelstory: actFeelStory };
   const FAVS = ["colour", "sound", "words", "count", "climb", "feelings", "turns"];
 
   /* ---------- session ---------- */
