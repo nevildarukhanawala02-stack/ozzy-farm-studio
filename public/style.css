@@ -284,3 +284,8 @@ button:focus-visible { outline: .8vmin solid var(--lake); outline-offset: .6vmin
 .slots.all .slot { background: var(--hay); color: var(--ink); transform: scale(1.06); }
 .guide.small { font-size: min(18vmin, 120px); }
 .card.pair span:only-child { font-size: calc(var(--c) * .5); }
+
+.gwrap { display: flex; align-items: center; gap: 10px; }
+.gtip { font-family: system-ui, sans-serif; font-size: 11px; line-height: 1.25; text-align: right; color: rgba(42, 45, 74, .5); }
+.parent .review { white-space: pre-wrap; font-size: 14px; line-height: 1.5; margin-top: 10px; }
+.ptabs .tab { font-size: 14px; padding: 10px 2px; }

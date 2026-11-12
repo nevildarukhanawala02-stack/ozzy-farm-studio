@@ -1,6 +1,6 @@
 # Ozzy’s Farm Studio
 
-A calm, painting-themed daily play session for Ozzy (about 15 minutes), now following a **3-month learning plan** of 72 lessons. Everything he does adds colour to a farm painting, which is saved to a gallery at the end.
+A calm, painting-themed daily play session for Ozzy (about 15 minutes), now following a **learning plan**: Months 1 and 2 are live (48 lessons over 8 weeks); Month 3 is written and held back until feedback comes in. Everything he does adds colour to a farm painting, which is saved to a gallery at the end.
 
 ## How a day works
 1. **Hello** with Pip the dog (optional: say it)
@@ -12,7 +12,7 @@ A calm, painting-themed daily play session for Ozzy (about 15 minutes), now foll
 Rules: tapping only, 2–3 big pictures per screen, wrong taps just wobble, the right answer glows after a while, the microphone is always optional, and any sound counts. Questions are spoken aloud (“Where is the cow?” from Month 2).
 
 ## The plan
-`public/curriculum.js` holds the plan as data: 3 months, 12 weeks, 6 themed days a week.
+`public/curriculum.js` holds the plan as data: 6 themed days a week. Months 1 and 2 are live; set `LIVE_MONTHS` there to switch on Month 3 when it is ready.
 
 | Day | Theme | Activities |
 | --- | --- | --- |
@@ -32,6 +32,7 @@ On the home screen, press and hold the small faint circle (bottom right) for 1.5
 - **Progress**: week and month, report card per skill, together moments, monthly check-ins
 - **Plan**: every month, week and lesson with what it contains, why, and its together moment
 - **Notes**: log good news or worries as they happen, tag the area, attach a photo or drawing
+- **Review**: a plain-language summary of progress, skills, automatic adjustments, check-ins and notes, with suggested focus for the next plan. Copy, share or download it
 - **Settings**: name, phrase length (follow the plan, or always 2 or 3), voice, speed, recordings, **backup file**, restart plan
 
 Everything is stored on the device only. Use *Download backup* now and then.
@@ -39,7 +40,8 @@ Everything is stored on the device only. Use *Download backup* now and then.
 ## Roadmap
 - **Phase 1 (done)**: plan engine, Month 1 activities, spoken questions, grown-ups dashboard, notes and check-ins
 - **Phase 2 (done)**: Month 2 content: crow number stories, yes/no, “first, then”, greetings, two-word requests, feelings in stories, two more adventure stories
-- **Phase 3**: Month 3 content (waiting, sharing, everyday-place stories) and the self-learning loop that turns three months of progress, notes and check-ins into the next plan
+- **Learning loop (done)**: the app gently adjusts difficulty from how he does (one more or fewer picture to choose from, logged in the grown-ups area), and the Review tab turns progress, notes and check-ins into a summary that shapes the next plan
+- **Month 3 (held)**: waiting, sharing, everyday-place stories, counting to 10 with story problems
 - **Later**: logins for other families, shared notes and attachments
 
 ## Make it personal
@@ -51,4 +53,4 @@ Everything is stored on the device only. Use *Download backup* now and then.
 npm start        # http://localhost:3000
 npm install && npm test
 ```
-`npm test` plays all 72 lessons in a simulated browser and exercises the grown-ups area. Push to GitHub, then on Railway choose **Deploy from GitHub repo**. No variables are needed. The microphone needs HTTPS, which Railway provides. On an iPad, open the link in Safari and use Share → Add to Home Screen.
+`npm test` plays all 48 lessons in a simulated browser and exercises the grown-ups area. Push to GitHub, then on Railway choose **Deploy from GitHub repo**. No variables are needed. The microphone needs HTTPS, which Railway provides. On an iPad, open the link in Safari and use Share → Add to Home Screen.

@@ -1,6 +1,6 @@
 "use strict";
-/* The grown-ups area: progress report card, the 3-month plan, notes about what Dinaz and the family see,
-   monthly check-ins, and settings. Everything is stored on this device only. */
+/* The grown-ups area: progress report card, the plan, notes about what the family sees, monthly check-ins,
+   a learning review that feeds the next plan, and settings. Everything is stored on this device only. */
 (() => {
   const O = window.OFS, C = window.CURRICULUM, h = O.h, $ = O.$;
   const prog = O.prog, settings = O.settings, store = O.store;
@@ -50,12 +50,12 @@
     const n = h("div", "parent");
     n.innerHTML = '<div class="phead"><h1>For grown-ups</h1><button class="btn grey" id="pBack">Back to play</button></div><div class="ptabs"></div><div class="pview"></div>';
     const bar = $(".ptabs", n), view = $(".pview", n);
-    const views = { progress: viewProgress, plan: viewPlan, notes: viewNotes, settings: viewSettings };
+    const views = { progress: viewProgress, plan: viewPlan, notes: viewNotes, review: viewReview, settings: viewSettings };
     const go = (t2) => {
       tab = t2; bar.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.t === t2));
       view.replaceChildren(); n.scrollTop = 0; views[t2](view, go);
     };
-    [["progress", "Progress"], ["plan", "Plan"], ["notes", "Notes"], ["settings", "Settings"]].forEach(([k, label]) => {
+    [["progress", "Progress"], ["plan", "Plan"], ["notes", "Notes"], ["review", "Review"], ["settings", "Settings"]].forEach(([k, label]) => {
       const b = h("button", "tab", label); b.dataset.t = k; b.onclick = () => go(k); bar.append(b);
     });
     $("#pBack", n).onclick = O.goHome;
@@ -69,10 +69,10 @@
     const st = state(), checkins = store.get("checkins", {}), events = store.get("events", []);
     const pct = Math.round(st.done / TOTAL * 100);
     const where = h("div", "box");
-    where.innerHTML = '<div class="big">Week ' + st.week + ' of 12 · Month ' + st.month + ": " + C.MONTHS[st.month - 1].title + '</div>' +
+    where.innerHTML = '<div class="big">Week ' + st.week + ' of ' + C.WEEKS.length + ' · Month ' + st.month + ": " + C.MONTHS[st.month - 1].title + '</div>' +
       '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
       "<p>" + st.done + " of " + TOTAL + " lessons finished. " +
-      (st.complete ? "The 3-month plan is complete. Do the final check-in, then use the review to plan the next three months."
+      (st.complete ? (C.MONTHS.length === 2 ? "Both months" : "All " + C.MONTHS.length + " months") + " of the plan are complete. Do the final check-in, then open the Review tab and share it to shape what comes next. Play now continues as free bonus play."
         : st.playedToday ? "Today’s lesson is done. Extra play today is bonus play and does not use up the next lesson."
           : "Next up: <b>" + esc(st.next.title) + "</b> (week " + st.next.week + ", day " + st.next.day + ").") + "</p>";
     c.append(h("h2", null, "Where we are"), where);
@@ -101,6 +101,11 @@
     });
     if (!any) rc.textContent = "The report card fills in after the first lessons.";
     c.append(h("h2", null, "Report card"), rc);
+
+    const adj = h("div", "box"), log = prog.adaptLog || [];
+    if (!log.length) adj.textContent = "No adjustments yet. When he finds one kind of activity very easy, or needs a lot of help with it, the app gently changes how many pictures it offers, and records the change here.";
+    log.slice(-3).reverse().forEach((a) => adj.append(h("div", "skill", "<b>" + esc(a.label) + " " + (a.dir > 0 ? "made a little harder" : "made a little easier") + "</b><span>" + fmtTs(a.ts) + ": he found the right picture straight away " + a.ratio + "% of the last 10 rounds.</span>")));
+    c.append(h("h2", null, "How the app is adapting"), adj);
 
     c.append(h("h2", null, "Monthly check-ins"));
     const ci = h("div", "box");
@@ -208,6 +213,70 @@
     cancel.onclick = () => open("progress"); box.append(save, cancel);
   }
 
+  /* ---------- review: a plain-language summary that shapes the next plan ---------- */
+  function buildReview() {
+    const st = state(), L = [], events = store.get("events", []).slice().sort((a, b) => a.ts - b.ts), cis = store.get("checkins", {});
+    const pct = (f, r) => Math.round(f / r * 100), log = prog.adaptLog || [];
+    const today = new Date().toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+    L.push(settings.name + "’s Farm Studio: learning review");
+    L.push("Created " + today + ". Plan: months 1 to " + C.MONTHS.length + " (" + TOTAL + " lessons).", "");
+    L.push("PROGRESS");
+    L.push("- " + st.done + " of " + TOTAL + " lessons finished (week " + st.week + " of " + C.WEEKS.length + "), on " + prog.days.length + " days, " + prog.sessions + " sessions in all");
+    L.push("- " + prog.together.length + " together moments logged; " + prog.attempts + " voice attempts (quiet and silent attempts count)", "");
+    L.push("SKILLS IN THE APP");
+    let any = false;
+    SKILLS.forEach(([k, label, choice]) => {
+      const s2 = prog.stats[k]; if (!s2 || !s2.r) return; any = true;
+      L.push("- " + label + ": practised " + s2.r + " times" + (choice ? "; found the right picture straight away " + s2.f + " of " + s2.r + " (" + pct(s2.f, s2.r) + "%)" : ""));
+    });
+    if (!any) L.push("- No activity recorded yet");
+    L.push("", "ADJUSTMENTS THE APP MADE ON ITS OWN");
+    if (!log.length) L.push("- None yet");
+    log.forEach((a) => L.push("- " + fmtTs(a.ts) + ": " + a.label + " made a little " + (a.dir > 0 ? "harder" : "easier") + " (" + a.what + "), after he found the right picture straight away " + a.ratio + "% of the last 10 rounds"));
+    L.push("", "MONTHLY CHECK-INS");
+    C.MONTHS.forEach((m) => {
+      const ci = cis[m.n]; L.push("Month " + m.n + ": " + m.title + (ci ? " (saved " + fmtTs(ci.ts) + ")" : ": not done yet"));
+      if (!ci) return;
+      m.checks.forEach((label, i) => L.push("- " + label + ": " + (ci.ratings && ci.ratings[i] != null ? RATINGS[ci.ratings[i]] : "no answer")));
+      [["improved", "What improved"], ["same", "What did not change"], ["enjoyed", "Enjoyed or avoided"], ["other", "Other"]].forEach(([k, q]) => { if (ci[k]) L.push("  " + q + ": " + ci[k]); });
+    });
+    L.push("", "NOTES FROM THE FAMILY");
+    if (!events.length) L.push("- No notes yet");
+    events.forEach((e) => L.push("- " + fmtTs(e.ts) + " [" + ((TYPES.find((x) => x[0] === e.type) || TYPES[2])[1].replace(/^\S+\s/, "")) + (e.tags && e.tags.length ? "; " + e.tags.join(", ") : "") + "]: " + (e.text || "(photo only)") + (e.media ? " (photo attached in the app)" : "")));
+    L.push("", "SUGGESTED FOCUS FOR THE NEXT PLAN (from the rules above, to be checked by a person)");
+    const sug = [];
+    C.MONTHS.forEach((m) => { const ci = cis[m.n]; if (!ci || !ci.ratings) return; m.checks.forEach((label, i) => {
+      if (ci.ratings[i] === 0) sug.push("Keep building: " + label.toLowerCase() + " (month " + m.n + " check-in: not yet)");
+      if (ci.ratings[i] === 2) sug.push("Strength to build on: " + label.toLowerCase() + " (month " + m.n + " check-in: often)");
+    }); });
+    SKILLS.forEach(([k, label, choice]) => { const s2 = prog.stats[k]; if (!choice || !s2) return;
+      if (s2.r >= 9 && s2.f / s2.r >= 0.85) sug.push("Ready for more challenge: " + label.toLowerCase());
+      if (s2.r >= 6 && s2.f / s2.r < 0.5) sug.push("Needs more time and repetition: " + label.toLowerCase()); });
+    const watch = events.filter((e) => e.type === "watch");
+    if (watch.length) sug.push("Notes marked worth watching: " + watch.length + (watch.some((e) => e.tags && e.tags.length) ? " (areas: " + [...new Set(watch.flatMap((e) => e.tags || []))].join(", ") + ")" : ""));
+    if (st.done >= 6 && prog.together.length < st.done / 2) sug.push("Together moments were logged on fewer than half the lessons: consider making them easier to fit in");
+    if (!Object.keys(cis).length) sug.push("No monthly check-ins saved yet: adding them makes the next plan reflect what you actually see");
+    sug.push("Ask his speech therapist or tutor to read this review before the next plan is final");
+    sug.forEach((x) => L.push("- " + x));
+    return L.join("\n");
+  }
+  function viewReview(c) {
+    const text = buildReview();
+    c.append(h("p", "soft", "A plain-language summary of what the app has seen and what you have told us. Share it with Ozzy’s therapist or tutor, and with whoever is shaping the next plan. You can open it any time, not only at the end."));
+    const msg = h("span", "soft"), row = h("div");
+    const copy = h("button", "btn", "Copy summary"), dl = h("button", "btn grey", "Download");
+    copy.onclick = async () => {
+      try { await navigator.clipboard.writeText(text); msg.textContent = " Copied. You can paste it into a message."; }
+      catch (e) { const ta = document.createElement("textarea"); ta.value = text; document.body.append(ta); ta.select(); try { document.execCommand("copy"); msg.textContent = " Copied."; } catch (er) { msg.textContent = " Could not copy: select the text and copy it."; } ta.remove(); }
+    };
+    dl.onclick = () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" })); a.download = "learning-review-" + O.today() + ".txt"; a.click(); };
+    row.append(copy, dl);
+    if (navigator.share) { const sh = h("button", "btn grey", "Share"); sh.onclick = () => navigator.share({ title: "Learning review", text }).catch(() => {}); row.append(sh); }
+    row.append(msg);
+    const box = h("div", "box review"); box.textContent = text;
+    c.append(row, box);
+  }
+
   /* ---------- settings, recordings, backup ---------- */
   function backup() {
     const data = { app: "ozzy-farm-studio", version: 2, exported: new Date().toISOString(), settings, prog, events: store.get("events", []), checkins: store.get("checkins", {}) };
@@ -244,15 +313,17 @@
     const bk = h("button", "btn", "Download backup"); bk.onclick = backup;
     const rp = h("button", "btn grey", "Restart the plan from week 1");
     rp.onclick = () => { if (!confirm("Restart from week 1? Notes, check-ins and paintings are kept.")) return; prog.lessons = []; prog.together = []; O.saveProg(); go("progress"); };
+    const ra = h("button", "btn grey", "Reset the app’s automatic adjustments");
+    ra.onclick = () => { if (!confirm("Go back to the plan’s standard difficulty?")) return; prog.adapt = {}; prog.adaptLog = []; Object.values(prog.stats).forEach((x) => { x.recent = []; }); O.saveProg(); go("settings"); };
     const er = h("button", "btn red", "Erase all progress, notes and recordings");
     er.onclick = async () => {
       if (!confirm("Erase all progress, paintings, notes and recordings on this device?")) return;
-      prog.sessions = 0; prog.days = []; prog.attempts = 0; prog.gallery = []; prog.lessons = []; prog.together = []; prog.stats = {}; O.saveProg();
+      prog.sessions = 0; prog.days = []; prog.attempts = 0; prog.gallery = []; prog.lessons = []; prog.together = []; prog.stats = {}; prog.adapt = {}; prog.adaptLog = []; O.saveProg();
       store.set("events", []); store.set("checkins", {});
       try { await O.idb.clear(); await O.idb.tx("readwrite", (s) => s.clear(), "media"); } catch (e) { /* ignore */ }
       go("settings");
     };
-    data.append(bk, rp, er); c.append(h("h2", null, "Your data"), data);
+    data.append(bk, rp, ra, er); c.append(h("h2", null, "Your data"), data);
 
     c.append(h("h2", null, "Recorded attempts"));
     const rbox = h("div", "box"); c.append(rbox);

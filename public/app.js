@@ -32,7 +32,7 @@
     set(k, v) { try { localStorage.setItem("ofs:" + k, JSON.stringify(v)); } catch (e) { /* private mode */ } },
   };
   const settings = Object.assign({ name: "Ozzy", phraseMode: "plan", rate: 0.8, voice: "", sfx: true }, store.get("settings", {}));
-  const prog = Object.assign({ sessions: 0, days: [], attempts: 0, gallery: [], lessons: [], together: [], stats: {} }, store.get("prog", {}));
+  const prog = Object.assign({ sessions: 0, days: [], attempts: 0, gallery: [], lessons: [], together: [], stats: {}, adapt: {}, adaptLog: [] }, store.get("prog", {}));
   const saveSettings = () => store.set("settings", settings);
   const saveProg = () => store.set("prog", prog);
 
@@ -321,8 +321,36 @@
     return { lesson: C.LESSONS[done], bonus: false };
   }
   let session = { lesson: C.freeLesson(1), bonus: true };
-  const cfg = () => session.lesson.cfg;
-  const track = (skill, first) => { const s = prog.stats[skill] || (prog.stats[skill] = { r: 0, f: 0 }); s.r++; if (first) s.f++; saveProg(); };
+  /* The week's settings, nudged by what the app has learned about him (see adaptAfterSession). */
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const cfg = () => {
+    const b = session.lesson.cfg, a = prog.adapt || {};
+    return Object.assign({}, b, { colours: clamp(b.colours + (a.colours || 0), 3, 7), animals: clamp(b.animals + (a.animals || 0), 3, 6),
+      faces: clamp(b.faces + (a.faces || 0), 2, 4), crows: b.crows ? clamp(b.crows + (a.crows || 0), 2, 5) : b.crows });
+  };
+  const track = (skill, first) => {
+    const s = prog.stats[skill] || (prog.stats[skill] = { r: 0, f: 0 });
+    s.r++; if (first) s.f++;
+    s.recent = (s.recent || []).concat(first ? 1 : 0).slice(-10);
+    saveProg();
+  };
+  /* Self-learning, kept gentle: when he finds the right picture straight away on almost every one of the last 10 rounds of a skill,
+     that skill gets a little harder (one more picture to choose from). When he mostly needs help, it gets a little easier.
+     Each change is logged so the grown-ups can see it, and needs fresh evidence before the next change. */
+  const LEVERS = { colour: ["colours", "Colours", "colour to choose from"], sound: ["animals", "Animal sounds", "animal to choose from"],
+    feelings: ["faces", "Feelings", "face to choose from"], crows: ["crows", "Number stories", "crow in the biggest story"] };
+  function adaptAfterSession() {
+    Object.keys(LEVERS).forEach((skill) => {
+      const s = prog.stats[skill], rec = s && s.recent; if (!rec || rec.length < 9) return;
+      const ratio = rec.reduce((a, b) => a + b, 0) / rec.length, key = LEVERS[skill][0], cur0 = prog.adapt[key] || 0;
+      let dir = 0; if (ratio >= 0.85 && cur0 < 2) dir = 1; else if (ratio <= 0.35 && cur0 > -2) dir = -1;
+      if (!dir) return;
+      prog.adapt[key] = cur0 + dir; s.recent = [];
+      prog.adaptLog.push({ ts: Date.now(), skill, label: LEVERS[skill][1], dir, ratio: Math.round(ratio * 100), offset: prog.adapt[key], what: (dir > 0 ? "one more " : "one fewer ") + LEVERS[skill][2] });
+      if (prog.adaptLog.length > 40) prog.adaptLog.shift();
+    });
+    saveProg();
+  }
   const firstTime = (skill) => ((prog.stats[skill] || {}).r || 0) < 3;
   const askWhere = (w) => (cfg().questions ? "Where is the " + w + "?" : w);
   const askColour = (w) => (cfg().questions ? "Where is " + w + "?" : w);
@@ -800,7 +828,7 @@
     prog.sessions++; if (!prog.days.includes(day)) prog.days.push(day);
     if (!session.bonus) prog.lessons.push({ n: L.n, day, ts: Date.now() });
     prog.gallery.push({ ts: Date.now(), fills: fills.slice(), lesson: L.n }); if (prog.gallery.length > 60) prog.gallery.shift();
-    saveProg(); sfx.fanfare(); confetti();
+    adaptAfterSession(); saveProg(); sfx.fanfare(); confetti();
     await say("Well done, " + settings.name + "!", { rate: 0.8 });
   }
   /* The grown-up part of every lesson, shown after the painting. */
@@ -831,7 +859,7 @@
   function goHome() {
     cur++; thumb.hidden = true; homeBtn.hidden = true;
     const n = h("div", "home"), pl = planNow();
-    n.innerHTML = '<div class="title"></div><div class="hero"><button class="guide big" aria-label="Pip the dog">🐶</button><button class="play" aria-label="Start painting">' + ICON.brush + '<span class="tbadge"></span></button></div><div class="row"><button class="round" aria-label="Paintings">' + ICON.gallery + '</button><button class="dot" aria-label="Grown-ups (press and hold)"></button></div>';
+    n.innerHTML = '<div class="title"></div><div class="hero"><button class="guide big" aria-label="Pip the dog">🐶</button><button class="play" aria-label="Start painting">' + ICON.brush + '<span class="tbadge"></span></button></div><div class="row"><button class="round" aria-label="Paintings">' + ICON.gallery + '</button><div class="gwrap"><span class="gtip">grown-ups<br>press and hold</span><button class="dot" aria-label="Grown-ups (press and hold)"></button></div></div>';
     $(".title", n).textContent = settings.name + "’s Farm Studio";
     $(".tbadge", n).textContent = pl.lesson.icon;
     $(".guide", n).onclick = () => { audio(); say("Hello!", { rate: 0.75 }).catch(() => {}); };

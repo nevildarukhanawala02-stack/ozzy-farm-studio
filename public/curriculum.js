@@ -1,6 +1,6 @@
 "use strict";
-/* The 3-month plan as data. The app (app.js) plays lessons from it and the grown-ups area (parent.js) shows it.
-   72 lessons = 12 weeks x 6 themed days. Lessons advance one per day played, in order, so a missed day
+/* The learning plan as data. The app (app.js) plays lessons from it and the grown-ups area (parent.js) shows it.
+   Live now: Months 1-2 = 48 lessons (8 weeks x 6 themed days). Lessons advance one per day played, in order, so a missed day
    never skips content. Works in the browser (window.CURRICULUM) and in Node (module.exports). */
 (function (root) {
   const THEMES = [
@@ -25,7 +25,7 @@
   ];
 
   /* cfg drives difficulty: colours (how many), animals, count (counting rope/basket up to), faces, phraseLen, questions (spoken as real questions) */
-  const WEEKS = [
+  const ALL_WEEKS = [
     { n: 1, month: 1, title: "Settling in", focus: "Getting comfortable with the routine and with Pip.",
       together: "Sit side by side and look at the painting together.",
       cfg: { crows: 0, colours: 3, animals: 3, count: 3, faces: 2, phraseLen: 2, questions: false } },
@@ -64,7 +64,7 @@
       cfg: { crows: 5, colours: 7, animals: 6, count: 10, faces: 4, phraseLen: 3, questions: true }, showoff: true },
   ];
 
-  const MONTHS = [
+  const ALL_MONTHS = [
     { n: 1, title: "Notice and Connect",
       intro: "Comfort with the routine and the first links between Ozzy and another person: looking, pointing, finding and turn-taking. Spoken words stay optional.",
       checks: ["Settles into the routine", "Looks at the person beside him", "Points to things", "Reaches for or taps a picture"] },
@@ -75,6 +75,11 @@
       intro: "Bringing the skills into everyday life with other people: sharing, waiting, asking for help, and short stories about places he will meet.",
       checks: ["Shares attention with others", "Takes a turn", "Waits briefly", "Shows things to people"] },
   ];
+
+  /* Months 1 and 2 are live. Month 3 is written but held back until feedback from the first two months comes in. */
+  const LIVE_MONTHS = 2;
+  const WEEKS = ALL_WEEKS.filter((w) => w.month <= LIVE_MONTHS);
+  const MONTHS = ALL_MONTHS.filter((m) => m.n <= LIVE_MONTHS);
 
   const PER_WEEK = THEMES.length;
   const ACT_DESC = {
@@ -114,8 +119,8 @@
       why: t.why, focus: w.focus, together: w.together, cfg: w.cfg, showoff: false, acts: ["splash", "fav"] };
   }
 
-  const API = { THEMES, WEEKS, MONTHS, LESSONS, PER_WEEK, actsFor, freeLesson,
+  const API = { THEMES, WEEKS, MONTHS, LESSONS, PER_WEEK, LIVE_MONTHS, ALL_WEEKS, ALL_MONTHS, actsFor, freeLesson,
     themeById: (id) => THEMES.find((t) => t.id === id),
-    monthOfWeek: (wk) => WEEKS[wk - 1].month };
+    monthOfWeek: (wk) => ALL_WEEKS[wk - 1].month };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else root.CURRICULUM = API;
 })(typeof window !== "undefined" ? window : globalThis);
