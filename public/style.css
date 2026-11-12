@@ -289,3 +289,31 @@ button:focus-visible { outline: .8vmin solid var(--lake); outline-offset: .6vmin
 .gtip { font-family: system-ui, sans-serif; font-size: 11px; line-height: 1.25; text-align: right; color: rgba(42, 45, 74, .5); }
 .parent .review { white-space: pre-wrap; font-size: 14px; line-height: 1.5; margin-top: 10px; }
 .ptabs .tab { font-size: 14px; padding: 10px 2px; }
+
+/* gallery memories */
+.tilewrap { display: flex; flex-direction: column; gap: 1vmin; }
+.tilewrap .tile { width: 100%; }
+.cap { display: flex; justify-content: center; gap: 1.2vmin; font-size: min(5vmin, 30px); min-height: 1.2em; line-height: 1.1; }
+.dotc { display: inline-block; width: .8em; height: .8em; border-radius: 50%; border: .2vmin solid var(--ink); vertical-align: middle; }
+.recallart { width: min(40vmin, 280px); border: .8vmin solid #fff; border-radius: 3vmin; overflow: hidden; background: #fff; box-shadow: 0 1vmin 0 var(--shadow); animation: grow .6s ease-out; }
+.recallart svg { display: block; width: 100%; }
+.overlay.pnt { overflow-y: auto; }
+.pbox { display: flex; flex-direction: column; align-items: center; gap: 3vmin; width: min(94vw, 760px); position: relative; }
+.pbox .bigart { width: min(86vw, 52vh * 1.33, 560px); border: 1vmin solid #fff; border-radius: 3vmin; overflow: hidden; background: #fff; }
+.pside { display: flex; flex-direction: column; align-items: center; gap: 2.4vmin; }
+.wchips { display: flex; flex-wrap: wrap; gap: 2vmin; justify-content: center; }
+.wchip { display: flex; align-items: center; gap: 1.2vmin; font-size: min(6.2vmin, 40px); font-weight: 600; padding: .6vmin 2.6vmin; border-radius: 99px; background: #fff; box-shadow: 0 .6vmin 0 var(--shadow); }
+.pctr { display: flex; gap: 3vmin; }
+.pctr .round { width: min(15vmin, 90px); }
+.round.myvoice { background: var(--barn); font-size: min(8vmin, 50px); }
+.pclose { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; width: 52px !important; background: rgba(255,255,255,.9); color: var(--ink); font-size: 22px; }
+.polaroid { position: absolute; right: -1vmin; top: -2vmin; width: min(22vmin, 150px); background: #fff; padding: 1vmin 1vmin 3vmin; transform: rotate(5deg); box-shadow: 0 1vmin 0 var(--shadow); border-radius: 6px; }
+.polaroid img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; }
+.gbtn { position: absolute; left: 12px; bottom: max(12px, env(safe-area-inset-bottom)); font-family: system-ui, sans-serif; font-size: 12px; color: rgba(255,255,255,.7); padding: 8px 10px; border-radius: 99px; background: rgba(255,255,255,.12); }
+.gbtn.holding { animation: hold .9s linear forwards; }
+.gpanel { position: absolute; left: 12px; right: 12px; bottom: 60px; max-width: 520px; background: #fff; border-radius: 16px; padding: 12px 14px; font-family: system-ui, sans-serif; font-size: 15px; text-align: left; -webkit-user-select: text; user-select: text; z-index: 30; }
+.gpanel p { margin: 0 0 8px; line-height: 1.45; }
+.gpanel label { display: block; margin: 6px 0; }
+.gbtn2 { background: #6b6f8a; color: #fff; border-radius: 10px; padding: 7px 12px; font: inherit; }
+@media (orientation: landscape) { .pbox { flex-direction: row; align-items: center; justify-content: center; } .pside { max-width: 34vw; } .pbox .bigart { width: min(54vw, 74vh * 1.33); } }
+.overlay.pnt { background: rgba(42, 45, 74, .9); }

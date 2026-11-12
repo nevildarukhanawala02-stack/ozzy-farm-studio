@@ -183,7 +183,7 @@
       await new Promise((r) => setTimeout(r, buf.duration * 1000 + 150));
     } catch (e) { /* playback is a bonus */ }
   }
-  async function saveRec(word, blob) { try { await idb.add({ word, ts: Date.now(), blob, type: blob.type }); } catch (e) { /* ignore */ } }
+  async function saveRec(word, blob) { try { return await idb.add({ word, ts: Date.now(), blob, type: blob.type }); } catch (e) { return null; } }
 
   /* ---------- icons ---------- */
   const W = 'fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"';
@@ -211,9 +211,16 @@
     { c: "#E86FA3", s: '<g><path d="M205 290V268M230 290V258M255 290V270" fill="none"/><circle cx="205" cy="264" r="10"/><circle cx="230" cy="254" r="10"/><circle cx="255" cy="266" r="10"/></g>' },
     { c: "#F2A33A", s: '<g><ellipse cx="320" cy="258" rx="28" ry="21"/><circle cx="344" cy="238" r="12"/></g>' },
   ];
-  function paintingSVG(fills, newIdx) {
+  /* Little extras join the painting as he learns: the animal he met, the number story, the face he matched. */
+  const EXSLOTS = [[330, 214, 36], [212, 236, 34], [118, 48, 38], [232, 62, 36]];
+  function paintingSVG(fills, newIdx, extras) {
     const parts = REGIONS.map((r, i) => '<g class="rg' + (i === newIdx ? " new" : "") + '" fill="' + (fills[i] || "#fff") + '" stroke="' + INK + '" stroke-width="3" stroke-linejoin="round">' + r.s + "</g>").join("");
-    return '<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Painting">' + parts + "</svg>";
+    const ex = (extras || []).slice(0, EXSLOTS.length).map((x, i) => {
+      const [cx, cy, sz] = EXSLOTS[i];
+      return x.c ? '<circle class="ex" cx="' + cx + '" cy="' + cy + '" r="15" fill="' + x.c + '" stroke="' + INK + '" stroke-width="3"/>'
+        : '<text class="ex" x="' + cx + '" y="' + cy + '" font-size="' + sz + '" text-anchor="middle" dominant-baseline="central">' + x.e + "</text>";
+    }).join("");
+    return '<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Painting">' + parts + "<g>" + ex + "</g></svg>";
   }
 
   /* ---------- screen plumbing ---------- */
@@ -222,7 +229,7 @@
   let fills = Array(REGIONS.length).fill(null);
   const zoom = () => {
     if ($("#app > .overlay")) return;
-    const o = h("div", "overlay", '<div class="bigart">' + paintingSVG(fills) + "</div>");
+    const o = h("div", "overlay", '<div class="bigart">' + paintingSVG(fills, -1, session.extras) + "</div>");
     o.onclick = () => o.remove(); $("#app").append(o);
   };
   thumb.setAttribute("role", "button"); thumb.tabIndex = 0; thumb.setAttribute("aria-label", "Zoom in on the painting");
@@ -232,7 +239,7 @@
   function paintNext(color) {
     const i = fills.findIndex((f) => !f); if (i < 0) return;
     fills[i] = color || REGIONS[i].c;
-    thumb.innerHTML = paintingSVG(fills, i);
+    thumb.innerHTML = paintingSVG(fills, i, session.extras);
     thumb.classList.remove("bump"); void thumb.offsetWidth; thumb.classList.add("bump");
   }
   function confetti() {
@@ -271,7 +278,7 @@
         const blob = await rec.done; rec = null;
         b.classList.remove("rec"); ring.style.transform = "";
         api.attempts++; prog.attempts++; saveProg();
-        if (blob && blob.size > 0) { saveRec(word, blob); await playBoosted(blob); }
+        if (blob && blob.size > 0) { saveRec(word, blob).then((id) => { if (id != null) session.recs[word] = id; }); await playBoosted(blob); }
         api.onAttempt();
       } catch (e) { rec = null; b.classList.remove("rec"); wrap.remove(); }
     };
@@ -302,7 +309,7 @@
         const b = h("button", "card", opt.node); if (i === o.target) b.dataset.correct = "1";
         b.onclick = async () => {
           if (done) return;
-          if (i === o.target) { done = true; clearTimers(); if (o.skill) track(o.skill, wrong === 0 && !cards[o.target].classList.contains("hint")); b.classList.add("win"); sfx.tick(); resolve(i); return; }
+          if (i === o.target) { done = true; clearTimers(); const first = wrong === 0 && !cards[o.target].classList.contains("hint"); if (o.skill) track(o.skill, first); b.classList.add("win"); sfx.tick(); resolve({ i, first }); return; }
           wrong++; b.classList.remove("wobble"); void b.offsetWidth; b.classList.add("wobble");
           if (wrong >= 2) cards[o.target].classList.add("hint");
           try { await (opt.say ? opt.say() : null); } catch (e) { /* cancelled */ }
@@ -327,7 +334,22 @@
     if (last && last.day === today()) return { lesson: C.freeLesson(C.LESSONS[done - 1].week), bonus: true };
     return { lesson: C.LESSONS[done], bonus: false };
   }
-  let session = { lesson: C.freeLesson(1), bonus: true };
+  let session = { lesson: C.freeLesson(1), bonus: true, mem: [], extras: [], recs: {} };
+  const refreshThumb = () => { if (!thumb.hidden) thumb.innerHTML = paintingSVG(fills, -1, session.extras); };
+  /* Every painting remembers up to three words from the day, and gets a little extra drawn in. */
+  function remember(m) {
+    const x = m.k === "phrase" ? (m.first ? 2 : 1) : (m.first ? 3 : 1), old = session.mem.find((y) => y.w === m.w);
+    if (old) { old.x = Math.max(old.x, x); return; }
+    session.mem.push({ w: m.w, k: m.k, e: m.e || null, q: m.q || null, vw: m.vw || m.w, x });
+    if (m.extra && m.e && session.extras.length < EXSLOTS.length) { session.extras.push(m.e.charAt(0) === "#" ? { c: m.e } : { e: m.e }); refreshThumb(); }
+  }
+  function pickMemory() {
+    const c = session.mem.map((m) => Object.assign({}, m, { sc: m.x + (session.recs[m.vw] ? 2 : 0) + Math.random() * 0.5 })).sort((a, b) => b.sc - a.sc);
+    const out = [], kinds = new Set();
+    c.forEach((m) => { if (out.length < 3 && !kinds.has(m.k)) { out.push(m); kinds.add(m.k); } });
+    c.forEach((m) => { if (out.length < 3 && !out.includes(m)) out.push(m); });
+    return out.map(({ w, k, e, q, vw }) => ({ w, k, e, q, vw }));
+  }
   /* The week's settings, nudged by what the app has learned about him (see adaptAfterSession). */
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const cfg = () => {
@@ -390,10 +412,11 @@
       const n = h("div", "scene"), board = h("div", "board"); n.append(board); show(n);
       const prompt = () => say(askColour(target.n), { rate: 0.7 });
       prompt().catch(() => {});
-      await choiceRound(n, {
+      const cr = await choiceRound(n, {
         cls: "pots", skill: "colour", options: opts.map((c) => ({ node: potSVG(c.hex), say: () => say(c.n, { rate: 0.7 }) })),
         target: opts.indexOf(target), prompt, hintFirst: firstTime("colour") && r === 0,
       });
+      remember({ w: target.n, k: "colour", e: target.hex, q: target.n, first: cr.first, extra: true });
       board.innerHTML = '<svg class="splat" viewBox="0 0 200 200"><path d="' + BLOB + '" fill="' + target.hex + '"/></svg><div class="bword">' + target.n + "</div>";
       sfx.splat(); await say(target.n + "!", { rate: 0.75 });
       await respond(n, { word: target.n });
@@ -434,10 +457,11 @@
       const n = h("div", "scene"); show(n);
       const prompt = () => animalSound(target);
       prompt().catch(() => {});
-      await choiceRound(n, {
+      const cr = await choiceRound(n, {
         skill: "sound", options: opts.map((k) => ({ node: pic(k, ANIMALS[k].e), say: () => animalSound(k) })),
         target: opts.indexOf(target), prompt, hintFirst: firstTime("sound") && r === 0,
       });
+      remember({ w: target, k: "animal", e: ANIMALS[target].e, q: target, vw: ANIMALS[target].w, first: cr.first, extra: true });
       await animalSound(target);
       await respond(n, { word: ANIMALS[target].w });
       await rewardPaint();
@@ -455,10 +479,11 @@
       const n = h("div", "scene"); show(n);
       const prompt = () => say(askWhere(target), { rate: 0.7 });
       prompt().catch(() => {});
-      await choiceRound(n, {
+      const cr = await choiceRound(n, {
         skill: "words", options: opts.map((k) => ({ node: pic(k, WORDS[k]), say: () => say(k, { rate: 0.7 }) })),
         target: opts.indexOf(target), prompt, hintFirst: firstTime("words") && r === 0,
       });
+      remember({ w: target, k: ANIMALS[target] ? "animal" : "thing", e: WORDS[target], q: target, first: cr.first, extra: true });
       await say(target + "!", { rate: 0.7 });
       await respond(n, { word: target });
       await rewardPaint();
@@ -499,7 +524,9 @@
         const me = cur;
         every(() => { if (me !== cur) return; const left = items.filter((i) => !i.dataset.got); if (left.length) left[0].classList.add("hint"); }, 9000);
       });
-      track("count", true); await sleep(500); await say(NUM[N] + "!", { rate: 0.8 });
+      track("count", true);
+      if (r === 2) remember({ w: NUM[N] + " " + kind + "s", k: "number", e: { pebble: "🪨", egg: "🥚", shell: "🐚" }[kind], q: kind, vw: NUM[N], first: true, extra: true });
+      await sleep(500); await say(NUM[N] + "!", { rate: 0.8 });
       await rewardPaint();
     }
   }
@@ -538,10 +565,11 @@
       const n = h("div", "scene"); show(n);
       const prompt = () => say(askFace(target.k), { rate: 0.7 });
       prompt().catch(() => {});
-      await choiceRound(n, {
+      const cr = await choiceRound(n, {
         skill: "feelings", options: opts.map((f) => ({ node: '<span class="emo">' + f.e + "</span>", say: () => say(f.k, { rate: 0.7 }) })),
         target: opts.indexOf(target), prompt, hintFirst: firstTime("feelings") && r === 0,
       });
+      remember({ w: target.k, k: "feeling", e: target.e, q: target.k, first: cr.first, extra: true });
       await say(target.k + "!", { rate: 0.7 });
       await respond(n, { word: target.k });
       await rewardPaint();
@@ -581,7 +609,7 @@
         cards.forEach((b) => { b.onclick = () => { clearTimers(); b.classList.add("win"); sfx.tick(); res(b.dataset.k); }; });
         const me = cur; every(() => { if (me !== cur) return; cards.find((b) => b.dataset.k === want).classList.add("hint"); say(line, { rate: 0.75 }).catch(() => {}); }, 9000);
       });
-      track("request", true);
+      track("request", true); remember({ w: REQ[k].word, k: "phrase", first: true });
       await say(REQ[k].say, { rate: 0.75 });
       await respond(n, { word: REQ[k].word });
       await rewardPaint();
@@ -623,11 +651,13 @@
         const rest = pickN(sc.opts.filter((k) => k !== sc.find), 2), opts = shuffle([sc.find, ...rest]);
         const prompt = () => say(sc.q, { rate: 0.75 });
         n.firstChild.classList.add("small"); await prompt().catch(() => {});
-        await choiceRound(n, { skill: "story", options: opts.map((k) => ({ node: pic(k, WORDS[k]), say: () => say(k, { rate: 0.7 }) })), target: opts.indexOf(sc.find), prompt, hintFirst: false });
+        const cr = await choiceRound(n, { skill: "story", options: opts.map((k) => ({ node: pic(k, WORDS[k]), say: () => say(k, { rate: 0.7 }) })), target: opts.indexOf(sc.find), prompt, hintFirst: false });
+        remember({ w: sc.find, k: "thing", e: WORDS[sc.find], q: sc.find, first: cr.first, extra: true });
         await say(sc.find + "!", { rate: 0.7 });
         await rewardPaint();
       } else if (sc === story.scenes[story.scenes.length - 1]) {
-        track("story", true); await nextOnly(n); await rewardPaint();
+        track("story", true); remember({ w: { beach: "the beach", farm: "the farm", walk: "a walk", paint: "painting" }[story.id], k: "story", e: { beach: "🏖️", farm: "🌾", walk: "🦆", paint: "🎨" }[story.id], first: true });
+        await nextOnly(n); await rewardPaint();
       } else await nextOnly(n);
     }
   }
@@ -664,7 +694,7 @@
       pc.onclick = () => { speak().catch(() => {}); };
       await speak();
       await respond(n, { word: p.w, idleMs: 20000 });
-      track("phrases", true);
+      track("phrases", true); remember({ w: p.w, k: "phrase", first: true });
       await rewardPaint();
     }
   }
@@ -689,10 +719,11 @@
       const opts = shuffle([left, ...wrong]);
       const prompt = () => say("How many crows are on the fence?", { rate: 0.75 });
       prompt().catch(() => {});
-      await choiceRound(n, {
+      const cr = await choiceRound(n, {
         skill: "crows", cls: "nums", options: opts.map((v) => ({ node: numCard(v), say: () => say(NUM[v], { rate: 0.7 }) })),
         target: opts.indexOf(left), prompt, hintFirst: firstTime("crows") && r === 0,
       });
+      remember({ w: crowWord(left), k: "number", e: "🐦", vw: NUM[left], first: cr.first, extra: true });
       await say(crowWord(left) + "!", { rate: 0.75 });
       await respond(n, { word: NUM[left] });
       await rewardPaint();
@@ -709,10 +740,11 @@
       const prompt = () => say("Is this " + an(label) + "?", { rate: 0.75 });
       prompt().catch(() => {});
       const opts = shuffle([{ k: "yes", e: "👍" }, { k: "no", e: "👎" }]);
-      await choiceRound(n, {
+      const cr = await choiceRound(n, {
         skill: "yesno", options: opts.map((o) => ({ node: '<span class="emo">' + o.e + "</span>", say: () => say(o.k, { rate: 0.7 }) })),
         target: opts.findIndex((o) => o.k === (yes ? "yes" : "no")), prompt, hintFirst: firstTime("yesno") && r === 0,
       });
+      if (yes) remember({ w: thing, k: ANIMALS[thing] ? "animal" : "thing", e: WORDS[thing], q: thing, first: cr.first, extra: true });
       await say((yes ? "Yes" : "No") + "! This is " + an(thing) + ".", { rate: 0.75 });
       await respond(n, { word: yes ? "yes" : "no" });
       await rewardPaint();
@@ -779,7 +811,7 @@
       });
       const a = await pick(shuffle(ASK_A), s1, "Tell Pip with two words. Pick the first word.");
       const b = await pick(pickN(ASK_B, 2), s2, a.k + "… what?");
-      row.remove(); slots.classList.add("all"); track("ask2", true);
+      row.remove(); slots.classList.add("all"); track("ask2", true); remember({ w: a.k + " " + b.k, k: "phrase", first: true });
       await say(a.k + " " + b.k + "!", { rate: 0.7 });
       await respond(n, { word: a.k + " " + b.k, idleMs: 16000 });
       await rewardPaint();
@@ -801,10 +833,11 @@
       await say(sc.t, { rate: 0.75 });
       const prompt = () => say("How does Pip feel?", { rate: 0.75 });
       prompt().catch(() => {});
-      await choiceRound(n, {
+      const cr = await choiceRound(n, {
         skill: "feelstory", options: opts.map((f) => ({ node: '<span class="emo">' + f.e + "</span>", say: () => say(f.k, { rate: 0.7 }) })),
         target: opts.indexOf(target), prompt, hintFirst: firstTime("feelstory") && r === 0,
       });
+      remember({ w: target.k, k: "feeling", e: target.e, q: target.k, first: cr.first, extra: false });
       await say(target.k + "!", { rate: 0.7 });
       await respond(n, { word: target.k });
       await rewardPaint();
@@ -826,7 +859,7 @@
   }
   async function finale() {
     const L = session.lesson;
-    const n = h("div", "scene finale done"), art = h("div", "bigart", paintingSVG(fills)), row = h("div", "row");
+    const n = h("div", "scene finale done"), art = h("div", "bigart", paintingSVG(fills, -1, session.extras)), row = h("div", "row");
     const g = h("button", "round", ICON.gallery), t = h("button", "round together", "🤝"), d = h("button", "round next", ICON.home);
     g.setAttribute("aria-label", "Paintings"); t.setAttribute("aria-label", "Together moment"); d.setAttribute("aria-label", "Finish");
     g.onclick = gallery; t.onclick = togetherScreen; d.onclick = goHome; row.append(g, t, d); n.append(art, row); show(n);
@@ -834,7 +867,10 @@
     const day = today();
     prog.sessions++; if (!prog.days.includes(day)) prog.days.push(day);
     if (!session.bonus) prog.lessons.push({ n: L.n, day, ts: Date.now() });
-    prog.gallery.push({ ts: Date.now(), fills: fills.slice(), lesson: L.n }); if (prog.gallery.length > 60) prog.gallery.shift();
+    const words = pickMemory(), vm = words.find((m) => session.recs[m.vw]), anyRec = Object.keys(session.recs)[0];
+    const voice = vm ? { id: session.recs[vm.vw], w: vm.vw } : anyRec ? { id: session.recs[anyRec], w: anyRec } : null;
+    prog.gallery.push({ ts: Date.now(), fills: fills.slice(), lesson: L.n, month: L.month, week: L.week, title: L.title, words, extras: session.extras.slice(), voice, rc: 0 });
+    if (prog.gallery.length > 60) prog.gallery.shift();
     adaptAfterSession(); saveProg(); sfx.fanfare(); confetti();
     await say("Well done, " + settings.name + "!", { rate: 0.8 });
   }
@@ -851,12 +887,40 @@
     });
     show(n);
   }
+  /* "Remember this one?" A painting from a few days ago comes back, and one easy question about a word on it:
+     practising recall a few days later helps learning stick. No reward and no pressure; it is a warm-up. */
+  function recallCandidate() {
+    const cutoff = Date.now() - 2 * 864e5;
+    const cands = prog.gallery.filter((g) => g.ts <= cutoff && g.words && g.words.some((w) => w.e && w.q));
+    if (!cands.length) return null;
+    cands.sort((a, b) => (a.rc || 0) - (b.rc || 0) || a.ts - b.ts);
+    const g = cands[0], ws = g.words.filter((w) => w.e && w.q);
+    return { g, m: ws[rnd(ws.length)] };
+  }
+  async function stepRecall() {
+    const pick = recallCandidate(); if (!pick) return;
+    const { g, m } = pick;
+    const pool = m.k === "colour" ? COLORS.map((c) => ({ e: c.hex, w: c.n })) : m.k === "feeling" ? FACES.map((f) => ({ e: f.e, w: f.k })) : Object.entries(WORDS).map(([w, e]) => ({ w, e }));
+    const opts = shuffle([{ e: m.e, w: m.q }, ...pickN(pool.filter((p) => p.w !== m.q && p.e !== m.e), 2)]);
+    const isCol = m.e.charAt(0) === "#", node = (o) => (o.e.charAt(0) === "#" ? potSVG(o.e) : pic(o.w, o.e));
+    const n = h("div", "scene"); n.append(h("div", "recallart", paintingSVG(g.fills, -1, g.extras)));
+    thumb.hidden = true; show(n);
+    await say("Remember this one?", { rate: 0.75 });
+    const line = m.k === "colour" ? "Can you find " + m.q + "?" : m.k === "feeling" ? "Can you find the " + m.q + " face?" : "Can you find the " + m.q + "?";
+    const prompt = () => say(line, { rate: 0.75 });
+    prompt().catch(() => {});
+    const cr = await choiceRound(n, { skill: "recall", cls: isCol ? "pots" : "", options: opts.map((o) => ({ node: node(o), say: () => say(o.w, { rate: 0.7 }) })), target: opts.findIndex((o) => o.w === m.q), prompt, hintFirst: false });
+    g.rc = (g.rc || 0) + 1; saveProg(); sfx.chime();
+    await say("Yes! " + m.q + "!", { rate: 0.75 });
+    thumb.hidden = false; thumb.innerHTML = paintingSVG(fills, -1, session.extras);
+  }
   async function runSession() {
     const me = ++cur; fills = Array(REGIONS.length).fill(null);
-    thumb.hidden = false; thumb.innerHTML = paintingSVG(fills); homeBtn.hidden = false;
-    const pl = planNow(); session = { lesson: pl.lesson, bonus: pl.bonus };
+    const pl = planNow(); session = { lesson: pl.lesson, bonus: pl.bonus, mem: [], extras: [], recs: {} };
+    thumb.hidden = false; thumb.innerHTML = paintingSVG(fills, -1, session.extras); homeBtn.hidden = false;
     try {
       await stepHello();
+      if (!session.bonus) await stepRecall();
       for (const id of C.actsFor(session.lesson)) await ACT[id === "fav" ? FAVS[rnd(FAVS.length)] : id]();
       await actPhrases(); await finale();
     } catch (e) { if (!(e instanceof Cancel)) { console.error(e); if (me === cur) goHome(); } }
@@ -875,21 +939,79 @@
     holdButton($(".dot", n), 1500, () => { if (window.OFS && window.OFS.openParent) window.OFS.openParent(); });
     show(n);
   }
+  /* ---------- gallery: every painting remembers a few words ---------- */
+  const listWords = (ws) => (ws.length <= 1 ? ws[0] || "" : ws.slice(0, -1).join(", ") + " and " + ws[ws.length - 1]);
+  const recapText = (g) => (g.words && g.words.length ? "Remember this day? " + listWords(g.words.map((w) => w.w)) + "." : "This was " + (g.title || "a painting day") + ".");
+  const promptText = (g) => (g.words && g.words.length
+    ? "Look together and ask: “What did we paint here?” " + (g.words.find((w) => w.q) ? "Then point to the " + g.words.find((w) => w.q).q + " and wait for any answer." : "Then say “" + g.words[0].w + "” together and wait for any answer.") + " Words on this painting: " + listWords(g.words.map((w) => w.w)) + "."
+    : "Look together and ask: “What did we do on this day?” Any answer, point or sound is welcome.");
+  const sticker = (w) => (w.e ? (w.e.charAt(0) === "#" ? '<i class="dotc" style="background:' + w.e + '"></i>' : "<span>" + w.e + "</span>") : "");
+  const media = {
+    shrink(file) {
+      return new Promise((res) => {
+        const url = URL.createObjectURL(file), img = new Image();
+        img.onload = () => {
+          const k = Math.min(1, 900 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+          c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+          c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+          c.toBlob((b) => res(b || file), "image/jpeg", 0.82);
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); res(file); };
+        img.src = url;
+      });
+    },
+    async put(file) { const blob = await this.shrink(file); return idb.tx("readwrite", (st) => st.add({ blob, ts: Date.now() }), "media"); },
+    get(id) { return idb.tx("readonly", (st) => st.get(id), "media").then((r) => r && r.blob); },
+  };
+
+  /* Tap a painting: Pip reminds him of the words, with a tap-to-hear for each. Grown-ups (press and hold) get a prompt and can add a real photo. */
+  function openPainting(g, host) {
+    const o = h("div", "overlay pnt"), box = h("div", "pbox"), side = h("div", "pside");
+    const art = h("div", "bigart", paintingSVG(g.fills, -1, g.extras));
+    const close = h("button", "round pclose", "✕"); close.setAttribute("aria-label", "Close");
+    const chips = h("div", "wchips"), ctr = h("div", "pctr");
+    (g.words || []).forEach((w) => { const b = h("button", "wchip", sticker(w) + "<b></b>"); $("b", b).textContent = w.w; b.onclick = () => { say(w.w, { rate: 0.7 }).catch(() => {}); }; chips.append(b); });
+    const hear = h("button", "round hear", ICON.speaker); hear.setAttribute("aria-label", "Hear it again");
+    const hearAll = () => say(recapText(g), { rate: 0.75 }).catch(() => {});
+    hear.onclick = hearAll; ctr.append(hear);
+    if (g.voice) {
+      const mv = h("button", "round myvoice", "🎙️"); mv.setAttribute("aria-label", "Hear my own voice");
+      mv.onclick = async () => { try { const r = await idb.tx("readonly", (st) => st.get(g.voice.id)); if (r && r.blob) await playBoosted(r.blob); else mv.remove(); } catch (e) { mv.remove(); } };
+      ctr.append(mv);
+    }
+    const photo = h("div", "polaroid"); photo.hidden = true;
+    const showPhoto = async () => {
+      if (!g.photo) { photo.hidden = true; return; }
+      try { const b = await media.get(g.photo); if (b) { photo.innerHTML = '<img alt="A real photo from home">'; $("img", photo).src = URL.createObjectURL(b); photo.hidden = false; } else photo.hidden = true; } catch (e) { photo.hidden = true; }
+    };
+    showPhoto();
+    const gb = h("button", "gbtn", "grown-ups"), panel = h("div", "gpanel"); panel.hidden = true;
+    panel.innerHTML = '<p></p><label>Add a real photo (his own dog, the farm…) <input type="file" accept="image/*"></label><button class="gbtn2" type="button">Remove photo</button>';
+    $("p", panel).textContent = promptText(g);
+    holdButton(gb, 900, () => { panel.hidden = !panel.hidden; });
+    $("input", panel).onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { g.photo = await media.put(f); saveProg(); showPhoto(); } catch (er) { /* ignore */ } };
+    $(".gbtn2", panel).onclick = () => { g.photo = null; saveProg(); showPhoto(); };
+    o.onclick = (e) => { if (e.target === o) o.remove(); }; close.onclick = () => o.remove();
+    side.append(chips, ctr); box.append(art, side, photo); o.append(box, close, gb, panel); host.append(o);
+    hearAll();
+  }
   function gallery() {
     cur++; thumb.hidden = true; homeBtn.hidden = true;
     const n = h("div", "gallery"), grid = h("div", "grid"), back = h("button", "round next", ICON.home);
     back.setAttribute("aria-label", "Home"); back.onclick = goHome;
     prog.gallery.slice().reverse().forEach((g) => {
-      const t = h("button", "tile", paintingSVG(g.fills)); t.setAttribute("aria-label", "Painting " + new Date(g.ts).toDateString());
-      t.onclick = () => { const o = h("div", "overlay", '<div class="bigart">' + paintingSVG(g.fills) + "</div>"); o.onclick = () => o.remove(); n.append(o); };
-      grid.append(t);
+      const wrap = h("div", "tilewrap"), t = h("button", "tile", paintingSVG(g.fills, -1, g.extras));
+      t.setAttribute("aria-label", "Painting " + new Date(g.ts).toDateString() + (g.words && g.words.length ? ": " + g.words.map((w) => w.w).join(", ") : ""));
+      t.onclick = () => openPainting(g, n);
+      wrap.append(t, h("div", "cap", (g.words || []).map(sticker).join("") + (g.photo ? "<span>📷</span>" : "")));
+      grid.append(wrap);
     });
     if (!prog.gallery.length) grid.append(h("p", "empty", "Paintings will show up here"));
     n.append(back, grid); show(n);
   }
 
   holdButton(homeBtn, 900, goHome);
-  window.OFS = { h, $, show, store, prog, settings, saveProg, saveSettings, idb, playBoosted, say, hasTTS, goHome, today, planNow,
+  window.OFS = { h, $, show, store, prog, settings, saveProg, saveSettings, idb, playBoosted, say, hasTTS, goHome, today, planNow, paintingSVG, getPhoto: media.get, promptText,
     enter() { cur++; thumb.hidden = true; homeBtn.hidden = true; } };
   window.__ozzy = { goHome, runSession, prog, settings };
   if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register("/sw.js").catch(() => {});

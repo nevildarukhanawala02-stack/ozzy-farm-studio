@@ -10,7 +10,7 @@
     ["colour", "Colours", true], ["sound", "Animal sounds", true], ["words", "Word pictures", true], ["feelings", "Feelings", true],
     ["count", "Counting objects", false], ["climb", "Counting rope", false], ["turns", "Taking turns", false],
     ["request", "Asking for things", false], ["ask2", "Two-word requests", false], ["story", "Story time", false], ["phrases", "Short phrases", false], ["splash", "Free painting", false],
-    ["yesno", "Yes and no", true], ["crows", "Number stories", true], ["feelstory", "Feelings in stories", true], ["firstthen", "First, then", false], ["greet", "Hi, thank you, bye bye", false],
+    ["recall", "Remembering earlier paintings", true], ["yesno", "Yes and no", true], ["crows", "Number stories", true], ["feelstory", "Feelings in stories", true], ["firstthen", "First, then", false], ["greet", "Hi, thank you, bye bye", false],
   ];
   const TAGS = ["Looking and pointing", "Understanding", "Speaking and sounds", "Being with others", "Mood and behaviour", "Other"];
   const TYPES = [["good", "🌟 Good news"], ["watch", "👀 Worth watching"], ["note", "📝 Note"]];
@@ -243,6 +243,10 @@
     L.push("", "NOTES FROM THE FAMILY");
     if (!events.length) L.push("- No notes yet");
     events.forEach((e) => L.push("- " + fmtTs(e.ts) + " [" + ((TYPES.find((x) => x[0] === e.type) || TYPES[2])[1].replace(/^\S+\s/, "")) + (e.tags && e.tags.length ? "; " + e.tags.join(", ") : "") + "]: " + (e.text || "(photo only)") + (e.media ? " (photo attached in the app)" : "")));
+    const gal = prog.gallery || [];
+    L.push("", "PAINTINGS AND MEMORIES");
+    L.push("- " + gal.length + " paintings in the gallery; " + gal.filter((g) => g.photo).length + " with a real photo attached; " + gal.filter((g) => g.voice).length + " with his own voice saved");
+    const rcs = prog.stats.recall; if (rcs && rcs.r) L.push("- “Remember this one?” practised " + rcs.r + " times; found the right picture straight away " + rcs.f + " of " + rcs.r + " (" + pct(rcs.f, rcs.r) + "%)");
     L.push("", "SUGGESTED FOCUS FOR THE NEXT PLAN (from the rules above, to be checked by a person)");
     const sug = [];
     C.MONTHS.forEach((m) => { const ci = cis[m.n]; if (!ci || !ci.ratings) return; m.checks.forEach((label, i) => {
@@ -260,6 +264,34 @@
     sug.forEach((x) => L.push("- " + x));
     return L.join("\n");
   }
+  /* A printable book of the paintings with the words each one remembers (use Print, then Save as PDF). */
+  const toDataURL = (blob) => new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(blob); });
+  const monthOfEntry = (g) => g.month || (g.lesson && C.LESSONS[g.lesson - 1] ? C.LESSONS[g.lesson - 1].month : null);
+  async function buildBookHTML(month) {
+    const list = prog.gallery.filter((g) => !month || monthOfEntry(g) === month);
+    const title = settings.name + "’s gallery book" + (month ? ": Month " + month + " · " + C.MONTHS[month - 1].title : "");
+    const cards = [];
+    for (const g of list) {
+      let photo = ""; if (g.photo) { try { const b = await O.getPhoto(g.photo); const u = b && await toDataURL(b); if (u) photo = '<img class="ph" alt="A real photo from home" src="' + u + '">'; } catch (e) { /* ignore */ } }
+      const words = (g.words || []).map((w) => '<span class="w">' + esc(w.w) + "</span>").join("");
+      cards.push('<div class="card"><div class="art">' + O.paintingSVG(g.fills, -1, g.extras) + photo + '</div><div class="meta"><b>' + esc(fmtTs(g.ts)) + "</b> · " + esc(g.title || "Painting day") + '</div><div>' + (words || '<span class="soft">No words saved for this one</span>') + '</div><div class="ask">' + esc(O.promptText(g)) + "</div></div>");
+    }
+    return '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>' + esc(title) + '</title><style>' +
+      'body{font-family:system-ui,Segoe UI,Arial,sans-serif;color:#2A2D4A;margin:22px;background:#fff}h1{font-size:24px;margin:0 0 4px}p.sub{margin:0 0 18px;color:#555a75}' +
+      '.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}.card{border:1px solid #dfe3ee;border-radius:14px;padding:12px;break-inside:avoid}' +
+      '.art{position:relative}.art svg{width:100%;display:block;border-radius:8px;border:1px solid #eef}.ph{position:absolute;right:6px;bottom:-10px;width:28%;border:4px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.25);transform:rotate(4deg)}' +
+      '.meta{margin:12px 0 6px}.w{display:inline-block;background:#F6C445;border-radius:99px;padding:3px 12px;margin:0 6px 6px 0;font-weight:600}.ask{font-size:12px;color:#555a75;margin-top:6px}.soft{color:#777}' +
+      '@media print{body{margin:10mm}.grid{gap:10mm}}</style></head><body><h1>' + esc(title) + '</h1><p class="sub">The paintings and the words each one remembers. Look at them together, and ask what you painted.</p>' +
+      (cards.length ? '<div class="grid">' + cards.join("") + "</div>" : "<p>No paintings yet.</p>") + "</body></html>";
+  }
+  async function openBook(month) {
+    const w = window.open("", "_blank");
+    const html = await buildBookHTML(month);
+    if (w) { w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { try { w.focus(); w.print(); } catch (e) { /* ignore */ } }, 700); return; }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([html], { type: "text/html" })); a.download = "gallery-book" + (month ? "-month-" + month : "") + ".html"; a.click();
+  }
+  O.buildBookHTML = buildBookHTML;
+
   function viewReview(c) {
     const text = buildReview();
     c.append(h("p", "soft", "A plain-language summary of what the app has seen and what you have told us. Share it with Ozzy’s therapist or tutor, and with whoever is shaping the next plan. You can open it any time, not only at the end."));
@@ -274,7 +306,13 @@
     if (navigator.share) { const sh = h("button", "btn grey", "Share"); sh.onclick = () => navigator.share({ title: "Learning review", text }).catch(() => {}); row.append(sh); }
     row.append(msg);
     const box = h("div", "box review"); box.textContent = text;
-    c.append(row, box);
+    const book = h("div", "box"), counts = {};
+    prog.gallery.forEach((g) => { const m = monthOfEntry(g) || 0; counts[m] = (counts[m] || 0) + 1; });
+    book.innerHTML = "<b>Gallery book</b><p class=\"soft\">A printable book of the paintings with the words each one remembers, and a prompt to look at them together. Choose a month, then Print, then Save as PDF.</p>";
+    C.MONTHS.forEach((m) => { if (!counts[m.n]) return; const b = h("button", "btn", "Month " + m.n + " (" + counts[m.n] + ")"); b.onclick = () => openBook(m.n); book.append(b); });
+    const all = h("button", "btn grey", "All paintings (" + prog.gallery.length + ")"); all.onclick = () => openBook(null);
+    if (prog.gallery.length) book.append(all); else book.append(h("p", "soft", "Paintings will appear here after the first sessions."));
+    c.append(book, h("h2", null, "Learning review"), row, box);
   }
 
   /* ---------- settings, recordings, backup ---------- */

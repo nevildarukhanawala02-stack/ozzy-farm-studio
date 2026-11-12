@@ -37,6 +37,13 @@ On the home screen, press and hold the small faint circle (bottom right) for 1.5
 
 Everything is stored on the device only. Use *Download backup* now and then.
 
+## Painting memories
+Each finished painting remembers up to three words from the day (the animal he met, a colour, “three eggs”, a feeling), prefers words he found easily or tried to say, and gains little extras (the hen, the egg, a colour dot) so no two paintings look alike.
+- **Gallery:** each tile shows small stickers for its words. Tap a painting and Pip reminds him of the words; tap a word to hear it; the 🎙️ plays his own voice if he recorded that day.
+- **Remember this one?** Once per lesson, a painting from a few days ago returns with one easy question about a word on it (no reward, no pressure).
+- **Grown-ups:** press and hold “grown-ups” in the painting view for a prompt (“What did we paint here?”) and to add a real photo (his own dog, the farm).
+- **Gallery book:** Review tab → pick a month → Print → Save as PDF.
+
 ## Roadmap
 - **Phase 1 (done)**: plan engine, Month 1 activities, spoken questions, grown-ups dashboard, notes and check-ins
 - **Phase 2 (done)**: Month 2 content: crow number stories, yes/no, “first, then”, greetings, two-word requests, feelings in stories, two more adventure stories

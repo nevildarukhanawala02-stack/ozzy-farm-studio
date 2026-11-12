@@ -67,13 +67,13 @@
   const ALL_MONTHS = [
     { n: 1, title: "Notice and Connect",
       intro: "Comfort with the routine and the first links between Ozzy and another person: looking, pointing, finding and turn-taking. Spoken words stay optional.",
-      checks: ["Settles into the routine", "Looks at the person beside him", "Points to things", "Reaches for or taps a picture"] },
+      checks: ["Settles into the routine", "Looks at the person beside him", "Points to things", "Reaches for or taps a picture", "Reacts to or points at a past painting"] },
     { n: 2, title: "Ask and Share",
       intro: "From finding to asking: answering simple questions, making requests, understanding feelings and following a short sequence.",
-      checks: ["Answers questions by pointing, tapping or a sound", "Asks for things, even without words", "Recognises happy, sad and cross faces", "Follows a short “first, then” sequence"] },
+      checks: ["Answers questions by pointing, tapping or a sound", "Asks for things, even without words", "Recognises happy, sad and cross faces", "Follows a short “first, then” sequence", "Reacts to or points at a past painting"] },
     { n: 3, title: "Together",
       intro: "Bringing the skills into everyday life with other people: sharing, waiting, asking for help, and short stories about places he will meet.",
-      checks: ["Shares attention with others", "Takes a turn", "Waits briefly", "Shows things to people"] },
+      checks: ["Shares attention with others", "Takes a turn", "Waits briefly", "Shows things to people", "Reacts to or points at a past painting"] },
   ];
 
   /* Months 1 and 2 are live. Month 3 is written but held back until feedback from the first two months comes in. */

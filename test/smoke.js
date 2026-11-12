@@ -65,6 +65,7 @@ async function playSession(dom, label) {
   // the rest of the plan: one simulated day per lesson
   for (let i = 3; i <= TOTAL; i++) {
     prog.lessons.forEach((l) => { l.day = "2000-01-01"; });
+    prog.gallery.forEach((g) => { g.ts -= 3 * 864e5; }); // earlier paintings are now a few days old, so recall can use them
     await playSession(dom, "lesson " + i);
     if (prog.lessons.length !== i) fail("lesson " + i + " did not complete (" + prog.lessons.length + ")");
     if (!prog.gallery[prog.gallery.length - 1].fills.every(Boolean)) fail("lesson " + i + " left painting regions empty");
@@ -72,14 +73,31 @@ async function playSession(dom, label) {
   }
   if (prog.lessons.length !== TOTAL) fail("plan should be complete");
   prog.lessons.forEach((l, i) => { if (l.n !== i + 1) fail("lessons out of order at " + i); });
-  ["colour", "sound", "words", "count", "climb", "feelings", "turns", "request", "story", "phrases", "splash", "yesno", "crows", "firstthen", "greet", "ask2", "feelstory"].forEach((k) => {
+  ["colour", "sound", "words", "count", "climb", "feelings", "turns", "request", "story", "phrases", "splash", "yesno", "crows", "firstthen", "greet", "ask2", "feelstory", "recall"].forEach((k) => {
     if (!prog.stats[k] || !prog.stats[k].r) fail("no progress tracked for " + k);
   });
+  // every painting remembers up to three words and a few extras
+  if (prog.gallery.some((g) => !Array.isArray(g.words) || g.words.length > 3 || !Array.isArray(g.extras) || g.extras.length > 4)) fail("painting memory data malformed");
+  if (prog.gallery.filter((g) => g.words.length === 3).length < prog.gallery.length * 0.6) fail("most paintings should remember three words");
+  if (!prog.gallery.some((g) => g.extras.length >= 2)) fail("paintings should gain extras");
+  if (!prog.gallery.some((g) => g.words.some((x) => x.e && x.q))) fail("some words should be recallable");
   if (!prog.adaptLog.length) fail("the app should have adapted difficulty after many easy rounds");
   if (Object.values(prog.adapt).some((v) => v > 2 || v < -2)) fail("adaptation out of range");
   // after the plan: still playable as bonus
   await playSession(dom, "after plan"); if (prog.lessons.length !== TOTAL) fail("plan advanced past the end");
   d.querySelector(".finale .round.next").click(); await wait(30);
+
+  // gallery: tap a painting to hear its words; grown-ups panel opens on press-and-hold
+  d.querySelector(".row .round").click(); await wait(40);
+  if (d.querySelectorAll(".tilewrap .tile").length !== prog.gallery.length) fail("gallery tiles: " + d.querySelectorAll(".tilewrap .tile").length);
+  if (!d.querySelector(".cap span, .cap i")) fail("gallery stickers missing");
+  d.querySelector(".tilewrap .tile").click(); await wait(40);
+  if (!d.querySelector(".pnt .wchip") || !d.querySelector(".pnt .hear")) fail("painting overlay missing words");
+  d.querySelector(".pnt .gbtn").dispatchEvent(new w.Event("pointerdown")); await wait(60);
+  if (d.querySelector(".pnt .gpanel").hidden) fail("grown-ups panel did not open");
+  if (!/What did we paint here/.test(d.querySelector(".pnt .gpanel p").textContent)) fail("grown-up prompt missing");
+  d.querySelector(".pnt .pclose").click(); if (d.querySelector(".pnt")) fail("overlay did not close");
+  d.querySelector(".gallery .round.next").click(); await wait(30);
 
   // grown-ups area
   d.querySelector(".dot").dispatchEvent(new w.Event("pointerdown")); await wait(80);
@@ -109,6 +127,10 @@ async function playSession(dom, label) {
   ["PROGRESS", "SKILLS IN THE APP", "ADJUSTMENTS THE APP MADE", "MONTHLY CHECK-INS", "NOTES FROM THE FAMILY", "SUGGESTED FOCUS"].forEach((h) => { if (!rv.includes(h)) fail("review missing " + h); });
   if (!/pointed at the cow/.test(rv) || !/Settled in well/.test(rv) || !/Settles into the routine: Not yet/.test(rv)) fail("review missing notes or check-in");
   if (!/Keep building: settles into the routine/.test(rv)) fail("review should suggest focus from a 'Not yet' rating");
+  if (!/PAINTINGS AND MEMORIES/.test(rv)) fail("review missing paintings section");
+  if (![...d.querySelectorAll(".btn")].some((b) => /Month 1 \(/.test(b.textContent))) fail("gallery book buttons missing");
+  const book = await w.OFS.buildBookHTML(1);
+  if (!/gallery book: Month 1/.test(book) || !/<svg/.test(book) || !/class="w"/.test(book)) fail("gallery book html wrong");
   tabs()[4].click(); await wait(60);
   if (!d.querySelector("#pName") || ![...d.querySelectorAll(".btn")].some((b) => /backup/i.test(b.textContent))) fail("settings missing");
   d.querySelector("#pBack").click(); await wait(30);
