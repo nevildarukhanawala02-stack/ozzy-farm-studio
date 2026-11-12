@@ -91,8 +91,9 @@
 
     const rc = h("div", "box"); let any = false;
     SKILLS.forEach(([k, label, choice]) => {
-      const s = prog.stats[k]; if (!s || !s.r) return; any = true;
-      let line = "Practised " + s.r + (s.r === 1 ? " time" : " times");
+      const s = prog.stats[k]; if (!s || !(s.r || s.pre)) return; any = true;
+      if (!s.r) { rc.append(h("div", "skill", "<b>" + label + "</b><span>Practised " + s.pre + " times earlier, before the plan started (lesson 1).</span>")); return; }
+      let line = "Practised " + s.r + (s.r === 1 ? " time" : " times") + (s.pre ? " (plus " + s.pre + " earlier)" : "");
       if (choice) {
         const ratio = s.f / s.r;
         line += ". Found the right picture straight away " + s.f + " of " + s.r + ": " + (s.r < 6 ? "just getting started" : ratio >= 0.8 ? "very steady" : ratio >= 0.5 ? "getting there" : "still learning, which is completely normal");
@@ -226,7 +227,8 @@
     L.push("SKILLS IN THE APP");
     let any = false;
     SKILLS.forEach(([k, label, choice]) => {
-      const s2 = prog.stats[k]; if (!s2 || !s2.r) return; any = true;
+      const s2 = prog.stats[k]; if (!s2 || !(s2.r || s2.pre)) return; any = true;
+      if (!s2.r) { L.push("- " + label + ": practised " + s2.pre + " times earlier, before the plan started (lesson 1)"); return; }
       L.push("- " + label + ": practised " + s2.r + " times" + (choice ? "; found the right picture straight away " + s2.f + " of " + s2.r + " (" + pct(s2.f, s2.r) + "%)" : ""));
     });
     if (!any) L.push("- No activity recorded yet");

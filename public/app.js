@@ -42,6 +42,15 @@
     if (!prog.lessons.length) prog.lessons.push({ n: 1, day: "2000-01-01", ts: 0, pre: true });
     saveProg();
   }
+  /* Lesson 1 counts as done, so its practice is credited in the report card too (colours, free painting, phrases),
+     marked as "earlier". Only practice is credited, never accuracy, because that first session was not measured. */
+  if (!prog.preStats) {
+    prog.preStats = true;
+    if (prog.lessons.some((l) => l.pre)) {
+      ["colour", "splash", "phrases"].forEach((k) => { const st = prog.stats[k] || (prog.stats[k] = { r: 0, f: 0 }); st.pre = Math.max(st.pre || 0, 3); });
+      saveProg();
+    }
+  }
 
   const idb = {
     db: null,

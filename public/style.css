@@ -289,3 +289,5 @@ button:focus-visible { outline: .8vmin solid var(--lake); outline-offset: .6vmin
 .gtip { font-family: system-ui, sans-serif; font-size: 11px; line-height: 1.25; text-align: right; color: rgba(42, 45, 74, .5); }
 .parent .review { white-space: pre-wrap; font-size: 14px; line-height: 1.5; margin-top: 10px; }
 .ptabs .tab { font-size: 14px; padding: 10px 2px; }
+.parent { padding-top: 0; }
+.phead { padding-top: 16px; background: var(--sky); }
