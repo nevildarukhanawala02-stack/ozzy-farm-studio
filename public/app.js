@@ -31,8 +31,8 @@
     get(k, d) { try { const v = localStorage.getItem("ofs:" + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem("ofs:" + k, JSON.stringify(v)); } catch (e) { /* private mode */ } },
   };
-  const settings = Object.assign({ name: "Ozzy", phraseLen: 2, rate: 0.8, voice: "", sfx: true }, store.get("settings", {}));
-  const prog = Object.assign({ sessions: 0, days: [], attempts: 0, gallery: [] }, store.get("prog", {}));
+  const settings = Object.assign({ name: "Ozzy", phraseMode: "plan", rate: 0.8, voice: "", sfx: true }, store.get("settings", {}));
+  const prog = Object.assign({ sessions: 0, days: [], attempts: 0, gallery: [], lessons: [], together: [], stats: {} }, store.get("prog", {}));
   const saveSettings = () => store.set("settings", settings);
   const saveProg = () => store.set("prog", prog);
 
@@ -42,18 +42,20 @@
       if (!this.db) {
         this.db = new Promise((res, rej) => {
           if (!window.indexedDB) return rej(new Error("no idb"));
-          const r = indexedDB.open("ozzy", 1);
-          r.onupgradeneeded = () => r.result.createObjectStore("recs", { keyPath: "id", autoIncrement: true });
+          const r = indexedDB.open("ozzy", 2);
+          r.onupgradeneeded = () => {
+            ["recs", "media"].forEach((n) => { if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n, { keyPath: "id", autoIncrement: true }); });
+          };
           r.onsuccess = () => res(r.result);
           r.onerror = () => rej(r.error);
         });
       }
       return this.db;
     },
-    async tx(mode, fn) {
-      const db = await this.open();
+    async tx(mode, fn, name) {
+      const db = await this.open(); name = name || "recs";
       return new Promise((res, rej) => {
-        const t = db.transaction("recs", mode); const s = t.objectStore("recs"); const req = fn(s);
+        const t = db.transaction(name, mode); const s = t.objectStore(name); const req = fn(s);
         t.oncomplete = () => res(req && req.result); t.onerror = () => rej(t.error);
       });
     },
@@ -293,7 +295,7 @@
         const b = h("button", "card", opt.node); if (i === o.target) b.dataset.correct = "1";
         b.onclick = async () => {
           if (done) return;
-          if (i === o.target) { done = true; clearTimers(); b.classList.add("win"); sfx.tick(); resolve(i); return; }
+          if (i === o.target) { done = true; clearTimers(); if (o.skill) track(o.skill, wrong === 0 && !cards[o.target].classList.contains("hint")); b.classList.add("win"); sfx.tick(); resolve(i); return; }
           wrong++; b.classList.remove("wobble"); void b.offsetWidth; b.classList.add("wobble");
           if (wrong >= 2) cards[o.target].classList.add("hint");
           try { await (opt.say ? opt.say() : null); } catch (e) { /* cancelled */ }
@@ -308,6 +310,27 @@
     });
   }
 
+  /* ---------- the plan: which lesson is next, and what it asks of him ---------- */
+  const C = window.CURRICULUM;
+  const today = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+  /* One new lesson per day played. Extra play the same day is "bonus" and never advances the plan. */
+  function planNow() {
+    const done = prog.lessons.length, total = C.LESSONS.length, last = prog.lessons[done - 1];
+    if (done >= total) return { lesson: C.freeLesson(C.WEEKS.length), bonus: true, complete: true };
+    if (last && last.day === today()) return { lesson: C.freeLesson(C.LESSONS[done - 1].week), bonus: true };
+    return { lesson: C.LESSONS[done], bonus: false };
+  }
+  let session = { lesson: C.freeLesson(1), bonus: true };
+  const cfg = () => session.lesson.cfg;
+  const track = (skill, first) => { const s = prog.stats[skill] || (prog.stats[skill] = { r: 0, f: 0 }); s.r++; if (first) s.f++; saveProg(); };
+  const firstTime = (skill) => ((prog.stats[skill] || {}).r || 0) < 3;
+  const askWhere = (w) => (cfg().questions ? "Where is the " + w + "?" : w);
+  const askColour = (w) => (cfg().questions ? "Where is " + w + "?" : w);
+  const askFace = (w) => (cfg().questions ? "Which face is " + w + "?" : w);
+  const phraseLen = () => (settings.phraseMode === "2" ? 2 : settings.phraseMode === "3" ? 3 : cfg().phraseLen);
+  /* Three counted rounds that build up to the week's limit: 3 -> 1,2,3; 5 -> 3,4,5; 10 -> 6,8,10 */
+  const countFor = (r) => { const m = cfg().count, step = m > 5 ? 2 : 1; return Math.max(1, m - (2 - r) * step); };
+
   /* ---------- activities ---------- */
   const COLORS = [
     { n: "red", hex: "#E23D3D" }, { n: "blue", hex: "#2F6FDE" }, { n: "yellow", hex: "#F6C21B" }, { n: "green", hex: "#3BA55D" },
@@ -316,22 +339,48 @@
   const potSVG = (hex) => '<svg viewBox="0 0 100 100"><path d="M14 32V78Q14 93 50 93T86 78V32Z" fill="' + hex + '" stroke="' + INK + '" stroke-width="4"/><ellipse cx="50" cy="32" rx="36" ry="11" fill="' + hex + '" stroke="' + INK + '" stroke-width="4"/><ellipse cx="50" cy="32" rx="36" ry="11" fill="#fff" opacity=".4"/><path d="M32 22Q50 4 68 22" fill="none" stroke="' + INK + '" stroke-width="4"/></svg>';
   const BLOB = "M100 18C130 10 168 30 178 62C192 98 170 140 138 160C108 182 64 176 40 150C14 122 18 78 42 52C58 32 78 22 100 18Z";
 
+  /* one splash of paint on a pad (used by free painting and turn-taking) */
+  function dab(pad, color, e) {
+    const r = pad.getBoundingClientRect();
+    const x = e && e.clientX ? e.clientX - r.left : r.width * (0.2 + Math.random() * 0.6);
+    const y = e && e.clientY ? e.clientY - r.top : r.height * (0.2 + Math.random() * 0.6);
+    const d = h("i", "dab"); d.style.cssText = "left:" + x + "px;top:" + y + "px;background:" + color; pad.append(d);
+  }
+
   async function actColour() {
-    const set = COLORS.slice(0, prog.sessions < 3 ? 3 : prog.sessions < 6 ? 5 : 7), used = [];
+    const set = COLORS.slice(0, cfg().colours), used = [];
     for (let r = 0; r < 3; r++) {
       const target = shuffle(set.filter((c) => !used.includes(c)))[0] || set[0]; used.push(target);
       const opts = shuffle([target, ...pickN(set.filter((c) => c !== target), 2)]);
       const n = h("div", "scene"), board = h("div", "board"); n.append(board); show(n);
-      const prompt = () => say(target.n, { rate: 0.7 });
+      const prompt = () => say(askColour(target.n), { rate: 0.7 });
       prompt().catch(() => {});
       await choiceRound(n, {
-        cls: "pots", options: opts.map((c) => ({ node: potSVG(c.hex), say: () => say(c.n, { rate: 0.7 }) })),
-        target: opts.indexOf(target), prompt, hintFirst: prog.sessions < 2 && r === 0,
+        cls: "pots", skill: "colour", options: opts.map((c) => ({ node: potSVG(c.hex), say: () => say(c.n, { rate: 0.7 }) })),
+        target: opts.indexOf(target), prompt, hintFirst: firstTime("colour") && r === 0,
       });
       board.innerHTML = '<svg class="splat" viewBox="0 0 200 200"><path d="' + BLOB + '" fill="' + target.hex + '"/></svg><div class="bword">' + target.n + "</div>";
       sfx.splat(); await say(target.n + "!", { rate: 0.75 });
       await respond(n, { word: target.n });
       await rewardPaint(target.hex);
+    }
+  }
+
+  async function actSplash() {
+    const set = COLORS.slice(0, Math.max(3, cfg().colours));
+    let k = 0;
+    for (let r = 0; r < 3; r++) {
+      const n = h("div", "scene"), pad = h("button", "splashpad"); pad.setAttribute("aria-label", "Paint here"); n.append(pad); show(n);
+      say(r === 0 ? "Tap to paint!" : "More paint!", { rate: 0.8 }).catch(() => {});
+      await new Promise((res) => {
+        let t = 0; const me = cur;
+        pad.onclick = (e) => {
+          const c = set[k++ % set.length]; dab(pad, c.hex, e); sfx.splat(); say(c.n, { rate: 0.8 }).catch(() => {});
+          if (++t >= 2) res();
+        };
+        every(() => { if (me === cur && t === 0) pad.classList.toggle("nudge"); }, 2500);
+      });
+      track("splash", true); await sleep(500); await rewardPaint();
     }
   }
 
@@ -343,7 +392,7 @@
   const animalSound = (k) => { const f = assetFile("sounds", k); return f ? playFile(f) : say(ANIMALS[k].s, { pitch: ANIMALS[k].p, rate: 0.85 }); };
 
   async function actSound() {
-    const keys = Object.keys(ANIMALS).slice(0, prog.sessions < 3 ? 3 : prog.sessions < 6 ? 4 : 6), used = [];
+    const keys = Object.keys(ANIMALS).slice(0, cfg().animals), used = [];
     for (let r = 0; r < 3; r++) {
       const target = shuffle(keys.filter((k) => !used.includes(k)))[0] || keys[0]; used.push(target);
       const opts = shuffle([target, ...pickN(keys.filter((k) => k !== target), 2)]);
@@ -351,8 +400,8 @@
       const prompt = () => animalSound(target);
       prompt().catch(() => {});
       await choiceRound(n, {
-        options: opts.map((k) => ({ node: pic(k, ANIMALS[k].e), say: () => animalSound(k) })),
-        target: opts.indexOf(target), prompt, hintFirst: prog.sessions < 2 && r === 0,
+        skill: "sound", options: opts.map((k) => ({ node: pic(k, ANIMALS[k].e), say: () => animalSound(k) })),
+        target: opts.indexOf(target), prompt, hintFirst: firstTime("sound") && r === 0,
       });
       await animalSound(target);
       await respond(n, { word: ANIMALS[target].w });
@@ -364,16 +413,16 @@
   const THEMES = [["dog", "cat", "hen", "egg", "cow", "tree"], ["shell", "wave", "crab", "fish", "boat", "sun"], ["apple", "banana", "milk", "bread", "egg", "water"]];
 
   async function actWords() {
-    const theme = THEMES[prog.sessions % 3], used = [];
+    const theme = THEMES[(session.lesson.n + session.lesson.week) % 3], used = [];
     for (let r = 0; r < 3; r++) {
       const target = shuffle(theme.filter((k) => !used.includes(k)))[0]; used.push(target);
       const opts = shuffle([target, ...pickN(theme.filter((k) => k !== target), 2)]);
       const n = h("div", "scene"); show(n);
-      const prompt = () => say(target, { rate: 0.7 });
+      const prompt = () => say(askWhere(target), { rate: 0.7 });
       prompt().catch(() => {});
       await choiceRound(n, {
-        options: opts.map((k) => ({ node: pic(k, WORDS[k]), say: () => say(k, { rate: 0.7 }) })),
-        target: opts.indexOf(target), prompt, hintFirst: prog.sessions < 2 && r === 0,
+        skill: "words", options: opts.map((k) => ({ node: pic(k, WORDS[k]), say: () => say(k, { rate: 0.7 }) })),
+        target: opts.indexOf(target), prompt, hintFirst: firstTime("words") && r === 0,
       });
       await say(target + "!", { rate: 0.7 });
       await respond(n, { word: target });
@@ -391,7 +440,7 @@
   async function actCount() {
     const kinds = ["pebble", "egg", "shell"], greys = ["#9AA0A6", "#B7A99A", "#8C8F9A", "#C2B8A3"];
     for (let r = 0; r < 3; r++) {
-      const kind = kinds[(prog.sessions + r) % 3], N = Math.min(10, 2 + Math.floor(prog.sessions / 2) + r);
+      const kind = kinds[(session.lesson.n + r) % 3], N = countFor(r);
       const scene = h("div", "scene"), field = h("div", "field"), basket = h("div", "basket", '<span class="bn">0</span><span class="bi">🧺</span>');
       scene.append(field, basket); show(scene);
       const cells = pickN([...Array(15).keys()], N), items = [];
@@ -415,14 +464,14 @@
         const me = cur;
         every(() => { if (me !== cur) return; const left = items.filter((i) => !i.dataset.got); if (left.length) left[0].classList.add("hint"); }, 9000);
       });
-      await sleep(500); await say(NUM[N] + "!", { rate: 0.8 });
+      track("count", true); await sleep(500); await say(NUM[N] + "!", { rate: 0.8 });
       await rewardPaint();
     }
   }
 
   async function actClimb() {
     for (let r = 0; r < 3; r++) {
-      const N = Math.min(10, 3 + Math.floor(prog.sessions / 2) + r), pos = (i) => 3 + i * (80 / N);
+      const N = countFor(r), pos = (i) => 3 + i * (80 / N);
       const wrap = h("div", "scene"), row = h("div", "climbwrap"), climb = h("div", "climb");
       climb.append(h("div", "rope"));
       const knots = [];
@@ -440,9 +489,108 @@
         };
         const me = cur; every(() => { if (me === cur && L < N) btn.style.transform = "scale(1.08)", setTimeout(() => (btn.style.transform = ""), 400); }, 7000);
       });
-      await sleep(700); await say(NUM[N] + "!", { rate: 0.8 });
+      track("climb", true); await sleep(700); await say(NUM[N] + "!", { rate: 0.8 });
       await rewardPaint();
     }
+  }
+
+  const FACES = [{ k: "happy", e: "😊" }, { k: "sad", e: "😢" }, { k: "cross", e: "😠" }, { k: "sleepy", e: "😴" }];
+  async function actFeelings() {
+    const set = FACES.slice(0, cfg().faces), used = [];
+    for (let r = 0; r < 3; r++) {
+      const target = shuffle(set.filter((f) => !used.includes(f)))[0] || shuffle(set)[0]; used.push(target);
+      const opts = shuffle([target, ...pickN(set.filter((f) => f !== target), 2)]);
+      const n = h("div", "scene"); show(n);
+      const prompt = () => say(askFace(target.k), { rate: 0.7 });
+      prompt().catch(() => {});
+      await choiceRound(n, {
+        skill: "feelings", options: opts.map((f) => ({ node: '<span class="emo">' + f.e + "</span>", say: () => say(f.k, { rate: 0.7 }) })),
+        target: opts.indexOf(target), prompt, hintFirst: firstTime("feelings") && r === 0,
+      });
+      await say(target.k + "!", { rate: 0.7 });
+      await respond(n, { word: target.k });
+      await rewardPaint();
+    }
+  }
+
+  /* Pip paints, then it is his turn. Waiting for the tap is the whole point: no timer, no pressure. */
+  async function actTurns() {
+    const set = COLORS.slice(0, 5);
+    for (let r = 0; r < 3; r++) {
+      const n = h("div", "scene"), who = h("div", "turnwho", "🐶"), pad = h("button", "turnpad"); pad.setAttribute("aria-label", "Paint pad");
+      n.append(who, pad); show(n);
+      await say("Pip’s turn", { rate: 0.75 }); await sleep(300);
+      dab(pad, set[(r * 2) % 5].hex); sfx.splat(); await sleep(800);
+      who.textContent = "🙋"; await say(settings.name + "’s turn", { rate: 0.75 });
+      pad.classList.add("mine");
+      await new Promise((res) => {
+        pad.onclick = (e) => { if (!pad.classList.contains("mine")) return; pad.classList.remove("mine"); dab(pad, set[(r * 2 + 1) % 5].hex, e); sfx.splat(); res(); };
+        const me = cur; every(() => { if (me === cur) say(settings.name + "’s turn", { rate: 0.75 }).catch(() => {}); }, 12000);
+      });
+      track("turns", true); await sleep(500); await rewardPaint();
+    }
+  }
+
+  /* Asking by tapping a picture: either answer is right, and the word is spoken back. */
+  const REQ = { more: { pic: ["🎨", "➕"], say: "More paint!", word: "more" }, help: { pic: ["🙋", "🤝"], say: "Help please!", word: "help" } };
+  async function actRequest() {
+    const plan = [["more", "Oh no! No more paint. Can you ask?"], ["help", "Oh no! The lid is stuck. Can you ask?"], ["more", "Pip wants more paint. Can you ask?"]];
+    for (let r = 0; r < 3; r++) {
+      const [want, line] = plan[r], n = h("div", "scene"), pip = h("div", "guide wave", "🐶"), row = h("div", "choices");
+      const cards = shuffle(["more", "help"]).map((k) => {
+        const b = h("button", "card pair", REQ[k].pic.map((e) => "<span>" + e + "</span>").join("")); b.dataset.any = "1"; b.dataset.k = k; return b;
+      });
+      row.append(...cards); n.append(pip, row); show(n);
+      say(line, { rate: 0.75 }).catch(() => {});
+      const k = await new Promise((res) => {
+        cards.forEach((b) => { b.onclick = () => { clearTimers(); b.classList.add("win"); sfx.tick(); res(b.dataset.k); }; });
+        const me = cur; every(() => { if (me !== cur) return; cards.find((b) => b.dataset.k === want).classList.add("hint"); say(line, { rate: 0.75 }).catch(() => {}); }, 9000);
+      });
+      track("request", true);
+      await say(REQ[k].say, { rate: 0.75 });
+      await respond(n, { word: REQ[k].word });
+      await rewardPaint();
+    }
+  }
+
+  const STORIES = [
+    { id: "beach", scenes: [
+      { e: "🐶🏖️", t: "Pip goes to the beach." },
+      { e: "🐚", t: "Pip sees something on the sand.", find: "shell", opts: ["shell", "crab", "boat"], q: "Can you find the shell?" },
+      { e: "🌊", t: "Splash! The waves come in." },
+      { e: "🦀", t: "Pip sees something with big claws.", find: "crab", opts: ["crab", "fish", "shell"], q: "Can you find the crab?" },
+      { e: "🐶😴", t: "Pip is tired. Bye bye beach!" } ] },
+    { id: "farm", scenes: [
+      { e: "🐶🌅", t: "Good morning, Pip!" },
+      { e: "🐔", t: "The hen has a surprise.", find: "egg", opts: ["egg", "apple", "ball"], q: "Can you find the egg?" },
+      { e: "🐄", t: "The cow says moo." },
+      { e: "🥛", t: "Pip is thirsty.", find: "milk", opts: ["milk", "water", "bread"], q: "Can you find the milk?" },
+      { e: "🐶🌳", t: "Time to play. Bye bye farm!" } ] },
+  ];
+  async function actStory() {
+    const story = STORIES[session.lesson.week % STORIES.length];
+    for (const sc of story.scenes) {
+      const n = h("div", "scene"); n.append(h("div", "storypic", sc.e)); show(n);
+      await say(sc.t, { rate: 0.75 });
+      if (sc.find) {
+        const rest = pickN(sc.opts.filter((k) => k !== sc.find), 2), opts = shuffle([sc.find, ...rest]);
+        const prompt = () => say(sc.q, { rate: 0.75 });
+        n.firstChild.classList.add("small"); await prompt().catch(() => {});
+        await choiceRound(n, { skill: "story", options: opts.map((k) => ({ node: pic(k, WORDS[k]), say: () => say(k, { rate: 0.7 }) })), target: opts.indexOf(sc.find), prompt, hintFirst: false });
+        await say(sc.find + "!", { rate: 0.7 });
+        await rewardPaint();
+      } else if (sc === story.scenes[story.scenes.length - 1]) {
+        track("story", true); await nextOnly(n); await rewardPaint();
+      } else await nextOnly(n);
+    }
+  }
+  function nextOnly(parent) {
+    const me = cur;
+    return new Promise((res) => {
+      const bar = h("div", "respond"), next = h("button", "round next", ICON.arrow); next.setAttribute("aria-label", "Next");
+      const fin = () => { clearTimeout(tm); if (me === cur) res(); };
+      const tm = later(fin, 15000); next.onclick = fin; bar.append(next); parent.append(bar);
+    });
   }
 
   const P2 = [
@@ -456,7 +604,7 @@
     { w: "I want water", pic: ["🙋", "💧"] }, { w: "help me please", pic: ["🙋", "🤝"] },
   ];
   async function actPhrases() {
-    const list = settings.phraseLen === 3 ? P3 : P2;
+    const list = phraseLen() === 3 ? P3 : P2;
     for (let r = 0; r < 3; r++) {
       const p = list[(prog.sessions * 3 + r) % list.length], ws = p.w.split(" ");
       const n = h("div", "scene"), pc = h("button", "pic", p.pic.map((e) => "<span>" + e + "</span>").join("")), chips = h("div", "chips", ws.map((w) => '<span class="chip">' + w + "</span>").join(""));
@@ -469,9 +617,13 @@
       pc.onclick = () => { speak().catch(() => {}); };
       await speak();
       await respond(n, { word: p.w, idleMs: 20000 });
+      track("phrases", true);
       await rewardPaint();
     }
   }
+
+  const ACT = { colour: actColour, splash: actSplash, sound: actSound, words: actWords, count: actCount, climb: actClimb, feelings: actFeelings, turns: actTurns, request: actRequest, story: actStory };
+  const FAVS = ["colour", "sound", "words", "count", "climb", "feelings", "turns"];
 
   /* ---------- session ---------- */
   async function stepHello() {
@@ -483,39 +635,54 @@
     await rewardPaint();
   }
   async function finale() {
+    const L = session.lesson;
     const n = h("div", "scene finale done"), art = h("div", "bigart", paintingSVG(fills)), row = h("div", "row");
-    const g = h("button", "round", ICON.gallery), d = h("button", "round next", ICON.home);
-    g.setAttribute("aria-label", "Paintings"); d.setAttribute("aria-label", "Finish");
-    g.onclick = gallery; d.onclick = goHome; row.append(g, d); n.append(art, row); show(n);
+    const g = h("button", "round", ICON.gallery), t = h("button", "round together", "🤝"), d = h("button", "round next", ICON.home);
+    g.setAttribute("aria-label", "Paintings"); t.setAttribute("aria-label", "Together moment"); d.setAttribute("aria-label", "Finish");
+    g.onclick = gallery; t.onclick = togetherScreen; d.onclick = goHome; row.append(g, t, d); n.append(art, row); show(n);
     thumb.hidden = true; homeBtn.hidden = true;
-    const day = new Date().toISOString().slice(0, 10);
+    const day = today();
     prog.sessions++; if (!prog.days.includes(day)) prog.days.push(day);
-    prog.gallery.push({ ts: Date.now(), fills: fills.slice() }); if (prog.gallery.length > 60) prog.gallery.shift();
+    if (!session.bonus) prog.lessons.push({ n: L.n, day, ts: Date.now() });
+    prog.gallery.push({ ts: Date.now(), fills: fills.slice(), lesson: L.n }); if (prog.gallery.length > 60) prog.gallery.shift();
     saveProg(); sfx.fanfare(); confetti();
     await say("Well done, " + settings.name + "!", { rate: 0.8 });
   }
-  const ACTS = [actColour, actSound, actWords, actCount, actClimb];
+  /* The grown-up part of every lesson, shown after the painting. */
+  function togetherScreen() {
+    cur++; thumb.hidden = true; homeBtn.hidden = true;
+    const L = session.lesson, n = h("div", "scene tg");
+    n.innerHTML = '<div class="tgico">🤝</div><div class="tgbox"><b>Together moment</b><p></p><small>Grown-up: press and hold the tick when you have done it.</small></div><div class="row2"><button class="round next" id="tgYes" aria-label="We did it (press and hold)">✓</button><button class="round" id="tgHome" aria-label="Home"></button></div>';
+    $("p", n).textContent = L.together; $("#tgHome", n).innerHTML = ICON.home; $("#tgHome", n).onclick = goHome;
+    holdButton($("#tgYes", n), 700, () => {
+      if ($("#tgYes", n).classList.contains("saved")) return;
+      prog.together.push({ n: L.n, week: L.week, ts: Date.now(), day: today() }); saveProg();
+      $("#tgYes", n).classList.add("saved"); sfx.chime();
+    });
+    show(n);
+  }
   async function runSession() {
     const me = ++cur; fills = Array(REGIONS.length).fill(null);
     thumb.hidden = false; thumb.innerHTML = paintingSVG(fills); homeBtn.hidden = false;
+    const pl = planNow(); session = { lesson: pl.lesson, bonus: pl.bonus };
     try {
       await stepHello();
-      const s = prog.sessions;
-      await ACTS[(2 * s) % 5](); await ACTS[(2 * s + 1) % 5]();
+      for (const id of C.actsFor(session.lesson)) await ACT[id === "fav" ? FAVS[rnd(FAVS.length)] : id]();
       await actPhrases(); await finale();
     } catch (e) { if (!(e instanceof Cancel)) { console.error(e); if (me === cur) goHome(); } }
   }
 
-  /* ---------- home, gallery, grown-ups ---------- */
+  /* ---------- home, gallery ---------- */
   function goHome() {
     cur++; thumb.hidden = true; homeBtn.hidden = true;
-    const n = h("div", "home");
-    n.innerHTML = '<div class="title"></div><div class="hero"><button class="guide big" aria-label="Pip the dog">🐶</button><button class="play" aria-label="Start painting">' + ICON.brush + '</button></div><div class="row"><button class="round" aria-label="Paintings">' + ICON.gallery + '</button><button class="dot" aria-label="Grown-ups (press and hold)"></button></div>';
+    const n = h("div", "home"), pl = planNow();
+    n.innerHTML = '<div class="title"></div><div class="hero"><button class="guide big" aria-label="Pip the dog">🐶</button><button class="play" aria-label="Start painting">' + ICON.brush + '<span class="tbadge"></span></button></div><div class="row"><button class="round" aria-label="Paintings">' + ICON.gallery + '</button><button class="dot" aria-label="Grown-ups (press and hold)"></button></div>';
     $(".title", n).textContent = settings.name + "’s Farm Studio";
+    $(".tbadge", n).textContent = pl.lesson.icon;
     $(".guide", n).onclick = () => { audio(); say("Hello!", { rate: 0.75 }).catch(() => {}); };
     $(".play", n).onclick = () => { audio(); if (hasTTS) try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch (e) { /* ignore */ } runSession(); };
     $(".row .round", n).onclick = gallery;
-    holdButton($(".dot", n), 1500, parentArea);
+    holdButton($(".dot", n), 1500, () => { if (window.OFS && window.OFS.openParent) window.OFS.openParent(); });
     show(n);
   }
   function gallery() {
@@ -530,59 +697,10 @@
     if (!prog.gallery.length) grid.append(h("p", "empty", "Paintings will show up here"));
     n.append(back, grid); show(n);
   }
-  async function parentArea() {
-    cur++; thumb.hidden = true; homeBtn.hidden = true;
-    const n = h("div", "parent");
-    const last = prog.days.length ? prog.days[prog.days.length - 1] : "not yet";
-    n.innerHTML =
-      "<h1>For grown-ups</h1>" +
-      '<div class="box"><b>' + prog.sessions + "</b> sessions finished on <b>" + prog.days.length + "</b> days (last: " + last + "). Voice attempts: <b>" + prog.attempts + "</b>. Silent or very quiet attempts count too.</div>" +
-      '<h2>Settings</h2><div class="box">' +
-      '<label>Child’s name <input type="text" id="pName" maxlength="20"></label>' +
-      '<label>Phrase length <select id="pLen"><option value="2">2 words (go there, eat food)</option><option value="3">3 words (I want ball)</option></select></label>' +
-      '<label>Voice <select id="pVoice"></select></label>' +
-      '<label>Speaking speed <input type="range" id="pRate" min="0.5" max="1.1" step="0.05"></label>' +
-      '<label><input type="checkbox" id="pSfx"> Play soft sound effects</label>' +
-      '<button class="btn grey" id="pTest">Hear a test</button></div>' +
-      '<h2>Recorded attempts</h2><div class="box" id="pRecs">Loading…</div>' +
-      '<h2>Make it personal</h2><p>Put photos of your own animals in <code>public/photos</code> (named dog.jpg, cat.jpg, hen.jpg, hamster.jpg, cow.jpg, sheep.jpg) and recordings in <code>public/sounds</code> (dog.mp3, cat.mp3, hen.mp3…). The app picks them up automatically after you redeploy.</p>' +
-      '<p><small>Everything is saved only on this device, and nothing is uploaded. Recordings stay in this browser.</small></p>' +
-      '<button class="btn" id="pDone">Back</button> <button class="btn red" id="pReset">Erase all progress and recordings</button>';
-    show(n);
-    const name = $("#pName", n), len = $("#pLen", n), voice = $("#pVoice", n), rate = $("#pRate", n), sfxBox = $("#pSfx", n);
-    name.value = settings.name; len.value = String(settings.phraseLen); rate.value = settings.rate; sfxBox.checked = settings.sfx;
-    const fillVoices = () => {
-      const vs = hasTTS ? speechSynthesis.getVoices().filter((v) => /^en/i.test(v.lang)) : [];
-      voice.innerHTML = '<option value="">Automatic</option>' + vs.map((v) => '<option value="' + v.voiceURI + '">' + v.name + " (" + v.lang + ")</option>").join("");
-      voice.value = settings.voice;
-    };
-    fillVoices(); if (hasTTS) speechSynthesis.onvoiceschanged = fillVoices;
-    name.oninput = () => { settings.name = name.value.trim() || "Ozzy"; saveSettings(); };
-    len.onchange = () => { settings.phraseLen = Number(len.value); saveSettings(); };
-    voice.onchange = () => { settings.voice = voice.value; saveSettings(); };
-    rate.oninput = () => { settings.rate = Number(rate.value); saveSettings(); };
-    sfxBox.onchange = () => { settings.sfx = sfxBox.checked; saveSettings(); };
-    $("#pTest", n).onclick = () => { say("Hello! Go there. Eat food.").catch(() => {}); };
-    $("#pDone", n).onclick = goHome;
-    $("#pReset", n).onclick = async () => {
-      if (!confirm("Erase all progress, paintings and recordings on this device?")) return;
-      prog.sessions = 0; prog.days = []; prog.attempts = 0; prog.gallery = []; saveProg(); try { await idb.clear(); } catch (e) { /* ignore */ } parentArea();
-    };
-    const box = $("#pRecs", n);
-    try {
-      const recs = (await idb.all()).sort((a, b) => b.ts - a.ts).slice(0, 80);
-      box.textContent = "";
-      if (!recs.length) box.textContent = "No recordings yet. They appear here when Ozzy uses the microphone button.";
-      recs.forEach((r) => {
-        const row = h("div", "rec", "<b></b>"); $("b", row).textContent = r.word + " · " + new Date(r.ts).toLocaleString();
-        const play = h("button", "btn", "Play"), del = h("button", "btn grey", "Delete");
-        play.onclick = () => playBoosted(r.blob); del.onclick = async () => { await idb.del(r.id); row.remove(); };
-        row.append(play, del); box.append(row);
-      });
-    } catch (e) { box.textContent = "Recordings are not available in this browser."; }
-  }
 
   holdButton(homeBtn, 900, goHome);
+  window.OFS = { h, $, show, store, prog, settings, saveProg, saveSettings, idb, playBoosted, say, hasTTS, goHome, today, planNow,
+    enter() { cur++; thumb.hidden = true; homeBtn.hidden = true; } };
   window.__ozzy = { goHome, runSession, prog, settings };
   if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register("/sw.js").catch(() => {});
   goHome();
