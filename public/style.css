@@ -319,3 +319,4 @@ button:focus-visible { outline: .8vmin solid var(--lake); outline-offset: .6vmin
 .overlay.pnt { background: rgba(42, 45, 74, .9); }
 .parent { padding-top: 0; }
 .phead { padding-top: 16px; background: var(--sky); }
+.round.pulse { animation: glowpot 1.4s ease-in-out infinite; box-shadow: 0 0 0 1.4vmin rgba(246, 196, 69, .85); }

@@ -34,6 +34,9 @@ async function playSession(dom, label) {
   const TOTAL = C.LESSONS.length; if (TOTAL !== 48 || C.WEEKS.length !== 8) fail("expected 48 lessons in 8 weeks, got " + TOTAL);
   C.LESSONS.forEach((l) => { if (!l.together || !l.contains || !l.why || !l.focus) fail("lesson " + l.n + " is missing text"); if (!C.actsFor(l).length) fail("lesson " + l.n + " has no activities"); });
 
+  // show-off weeks (4 and 8) replay favourites and send him to his gallery
+  [4, 8].forEach((wk) => C.LESSONS.filter((l) => l.week === wk).forEach((l) => { if (!C.actsFor(l).includes("fav")) fail("show-off lesson " + l.n + " should replay a favourite"); }));
+  if (C.actsFor(C.LESSONS.find((l) => l.week === 4 && l.theme === "free")).join() !== "fav,fav") fail("show-off free day should be two favourites");
   await new Promise((r) => server.listen(0, r));
   const url = "http://localhost:" + server.address().port + "/";
   const vc = new VirtualConsole();

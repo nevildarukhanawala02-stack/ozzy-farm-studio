@@ -93,16 +93,20 @@
   };
   function actsFor(lesson) {
     const w = lesson.week, m2 = w >= 5, odd = w % 2 === 1;
+    let a;
     switch (lesson.theme) {
-      case "colour": return ["colour", "splash"];
-      case "sounds": return m2 ? ["sound", odd ? "yesno" : "words"] : ["sound", "words"];
-      case "numbers": return m2 ? ["crows", odd ? "count" : "climb"] : ["count", "climb"];
-      case "feelings": return m2 ? (odd ? ["feelings", "greet"] : ["feelstory", "turns"]) : ["feelings", "turns"];
-      case "adventure": return m2 ? ["story", "firstthen"] : ["story", "words"];
-      default: return w >= 6 ? ["request2", "splash"] : w >= 3 ? ["request", "splash"] : ["splash", "fav"];
+      case "colour": a = ["colour", "splash"]; break;
+      case "sounds": a = m2 ? ["sound", odd ? "yesno" : "words"] : ["sound", "words"]; break;
+      case "numbers": a = m2 ? ["crows", odd ? "count" : "climb"] : ["count", "climb"]; break;
+      case "feelings": a = m2 ? (odd ? ["feelings", "greet"] : ["feelstory", "turns"]) : ["feelings", "turns"]; break;
+      case "adventure": a = m2 ? ["story", "firstthen"] : ["story", "words"]; break;
+      default: a = w >= 6 ? ["request2", "splash"] : w >= 3 ? ["request", "splash"] : ["splash", "fav"];
     }
+    /* Show-off weeks: replay his favourites, and the painting screen points him to his gallery. */
+    if (lesson.showoff) a = lesson.theme === "free" ? ["fav", "fav"] : [a[0], "fav"];
+    return a;
   }
-  const describe = (acts) => "He " + acts.map((a) => ACT_DESC[a]).join(", then ") + ".";
+  const describe = (acts) => (acts.length === 2 && acts[0] === "fav" && acts[1] === "fav" ? "He replays two of his favourites, then looks at his gallery." : "He " + acts.map((a) => ACT_DESC[a]).join(", then ") + ".");
 
   const LESSONS = [];
   WEEKS.forEach((w) => THEMES.forEach((t, i) => {

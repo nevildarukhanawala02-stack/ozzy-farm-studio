@@ -300,7 +300,7 @@
       next.setAttribute("aria-label", "Next");
       let tm = 0;
       const fin = () => { clearTimeout(tm); if (me === cur) res(); };
-      const arm = () => { clearTimeout(tm); tm = later(fin, opt.idleMs || 12000); };
+      const arm = () => { clearTimeout(tm); tm = later(fin, opt.idleMs || 45000); };
       if (micOK() && !micDenied) {
         const m = makeMic(opt.word); m.onStart = () => clearTimeout(tm); m.onAttempt = arm; bar.append(m.el);
       }
@@ -675,7 +675,7 @@
     return new Promise((res) => {
       const bar = h("div", "respond"), next = h("button", "round next", ICON.arrow); next.setAttribute("aria-label", "Next");
       const fin = () => { clearTimeout(tm); if (me === cur) res(); };
-      const tm = later(fin, 15000); next.onclick = fin; bar.append(next); parent.append(bar);
+      const tm = later(fin, 45000); next.onclick = fin; bar.append(next); parent.append(bar);
     });
   }
 
@@ -702,7 +702,7 @@
       };
       pc.onclick = () => { speak().catch(() => {}); };
       await speak();
-      await respond(n, { word: p.w, idleMs: 20000 });
+      await respond(n, { word: p.w, idleMs: 45000 });
       track("phrases", true); remember({ w: p.w, k: "phrase", first: true });
       await rewardPaint();
     }
@@ -822,7 +822,7 @@
       const b = await pick(pickN(ASK_B, 2), s2, a.k + "… what?");
       row.remove(); slots.classList.add("all"); track("ask2", true); remember({ w: a.k + " " + b.k, k: "phrase", first: true });
       await say(a.k + " " + b.k + "!", { rate: 0.7 });
-      await respond(n, { word: a.k + " " + b.k, idleMs: 16000 });
+      await respond(n, { word: a.k + " " + b.k, idleMs: 45000 });
       await rewardPaint();
     }
   }
@@ -856,6 +856,11 @@
   const ACT = { colour: actColour, splash: actSplash, sound: actSound, words: actWords, count: actCount, climb: actClimb, feelings: actFeelings, turns: actTurns, request: actRequest, story: actStory,
     yesno: actYesNo, crows: actCrows, firstthen: actFirstThen, greet: actGreet, request2: actAsk2, feelstory: actFeelStory };
   const FAVS = ["colour", "sound", "words", "count", "climb", "feelings", "turns"];
+  /* A favourite is the activity he has practised most (a little randomness breaks ties), never one already in today's lesson. */
+  function pickFav(avoid) {
+    const c = FAVS.filter((a) => !avoid.includes(a)).map((a) => ({ a, s: ((prog.stats[a] || {}).r || 0) + Math.random() })).sort((x, y) => y.s - x.s);
+    return c[0].a;
+  }
 
   /* ---------- session ---------- */
   async function stepHello() {
@@ -863,7 +868,7 @@
     n.append(g); show(n); sfx.tick();
     g.onclick = () => { say("Hello!", { rate: 0.75 }).catch(() => {}); };
     await say("Hello!", { rate: 0.75 });
-    await respond(n, { word: "hello", idleMs: 14000 });
+    await respond(n, { word: "hello", idleMs: 45000 });
     await rewardPaint();
   }
   async function finale() {
@@ -879,9 +884,10 @@
     const words = pickMemory(), vm = words.find((m) => session.recs[m.vw]), anyRec = Object.keys(session.recs)[0];
     const voice = vm ? { id: session.recs[vm.vw], w: vm.vw } : anyRec ? { id: session.recs[anyRec], w: anyRec } : null;
     prog.gallery.push({ ts: Date.now(), fills: fills.slice(), lesson: L.n, month: L.month, week: L.week, title: L.title, words, extras: session.extras.slice(), voice, rc: 0 });
-    if (prog.gallery.length > 60) prog.gallery.shift();
+    if (prog.gallery.length > 300) prog.gallery.shift();
     adaptAfterSession(); saveProg(); sfx.fanfare(); confetti();
     await say("Well done, " + settings.name + "!", { rate: 0.8 });
+    if (L.showoff) { g.classList.add("pulse"); await say("Look at your paintings!", { rate: 0.8 }); }
   }
   /* The grown-up part of every lesson, shown after the painting. */
   function togetherScreen() {
@@ -930,7 +936,8 @@
     try {
       await stepHello();
       if (!session.bonus) await stepRecall();
-      for (const id of C.actsFor(session.lesson)) await ACT[id === "fav" ? FAVS[rnd(FAVS.length)] : id]();
+      const planned = C.actsFor(session.lesson), used = planned.filter((a) => a !== "fav");
+      for (const id of planned) { const a = id === "fav" ? pickFav(used) : id; used.push(a); await ACT[a](); }
       await actPhrases(); await finale();
     } catch (e) { if (!(e instanceof Cancel)) { console.error(e); if (me === cur) goHome(); } }
   }
@@ -974,7 +981,7 @@
   };
 
   /* Tap a painting: Pip reminds him of the words, with a tap-to-hear for each. Grown-ups (press and hold) get a prompt and can add a real photo. */
-  function openPainting(g, host) {
+  function openPainting(g, host, onChange) {
     const o = h("div", "overlay pnt"), box = h("div", "pbox"), side = h("div", "pside");
     const art = h("div", "bigart", paintingSVG(g.fills, -1, g.extras));
     const close = h("button", "round pclose", "✕"); close.setAttribute("aria-label", "Close");
@@ -998,8 +1005,8 @@
     panel.innerHTML = '<p></p><label>Add a real photo (his own dog, the farm…) <input type="file" accept="image/*"></label><button class="gbtn2" type="button">Remove photo</button>';
     $("p", panel).textContent = promptText(g);
     holdButton(gb, 900, () => { panel.hidden = !panel.hidden; });
-    $("input", panel).onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { g.photo = await media.put(f); saveProg(); showPhoto(); } catch (er) { /* ignore */ } };
-    $(".gbtn2", panel).onclick = () => { g.photo = null; saveProg(); showPhoto(); };
+    $("input", panel).onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { g.photo = await media.put(f); saveProg(); showPhoto(); onChange && onChange(); } catch (er) { /* ignore */ } };
+    $(".gbtn2", panel).onclick = () => { g.photo = null; saveProg(); showPhoto(); onChange && onChange(); };
     o.onclick = (e) => { if (e.target === o) o.remove(); }; close.onclick = () => o.remove();
     side.append(chips, ctr); box.append(art, side, photo); o.append(box, close, gb, panel); host.append(o);
     hearAll();
@@ -1011,8 +1018,9 @@
     prog.gallery.slice().reverse().forEach((g) => {
       const wrap = h("div", "tilewrap"), t = h("button", "tile", paintingSVG(g.fills, -1, g.extras));
       t.setAttribute("aria-label", "Painting " + new Date(g.ts).toDateString() + (g.words && g.words.length ? ": " + g.words.map((w) => w.w).join(", ") : ""));
-      t.onclick = () => openPainting(g, n);
-      wrap.append(t, h("div", "cap", (g.words || []).map(sticker).join("") + (g.photo ? "<span>📷</span>" : "")));
+      const capHtml = () => (g.words || []).map(sticker).join("") + (g.photo ? "<span>📷</span>" : ""), cap = h("div", "cap", capHtml());
+      t.onclick = () => openPainting(g, n, () => { cap.innerHTML = capHtml(); });
+      wrap.append(t, cap);
       grid.append(wrap);
     });
     if (!prog.gallery.length) grid.append(h("p", "empty", "Paintings will show up here"));

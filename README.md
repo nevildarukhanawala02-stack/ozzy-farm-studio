@@ -37,6 +37,9 @@ On the home screen, press and hold the small faint circle (bottom right) for 1.5
 
 Everything is stored on the device only. Use *Download backup* now and then.
 
+## Show-off weeks
+Weeks 4 and 8 replay his favourites (the activities he has practised most), and the painting screen pulses the gallery button so he looks at his paintings. The gallery keeps the latest 300 paintings, and screens wait about 45 seconds before moving on by themselves.
+
 ## Painting memories
 Each finished painting remembers up to three words from the day (the animal he met, a colour, “three eggs”, a feeling), prefers words he found easily or tried to say, and gains little extras (the hen, the egg, a colour dot) so no two paintings look alike.
 - **Gallery:** each tile shows small stickers for its words. Tap a painting and Pip reminds him of the words; tap a word to hear it; the 🎙️ plays his own voice if he recorded that day.
